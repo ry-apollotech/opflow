@@ -12,7 +12,7 @@ description: Break a feature into OpenProject User Stories and create them only 
 3. Show them as a numbered table (`# | Subject | Acceptance criteria`), then ask with AskUserQuestion: **Approve**, **Edit**, **Cancel**.
    - **Edit** → apply the changes, show the full table again, ask again.
    - **Cancel** → stop. Nothing is created.
-4. Only after **Approve**, write the stories as a JSON array of `{ "subject": "...", "description": "..." }` to `{{DATA_DIR}}/tasks.json`, then run:
+4. Only after **Approve**, write the stories as a JSON array of `{ "subject": "...", "description": "..." }` to `{{DATA_DIR}}/tasks.json`. If writing the file fails for any reason, stop and tell the user — never run the `--yes` command. Otherwise run:
 
    ```bash
    node "{{DFLY}}" op:create --file "{{DATA_DIR}}/tasks.json" --yes

@@ -102,8 +102,10 @@ absolute path to this repo's gitignored `.dfly/` directory (where `tasks.json` a
 
 1. Skills always display the exact content and wait for explicit user approval before any write.
 2. The CLI performs no write without `--yes`; default is a dry run.
-3. User-level `~/.claude/settings.json` gets a permission `ask` rule `Bash(node *dfly.js *--yes*)` so Claude Code
-   prompts again on every write, in every project, even if a skill misbehaves.
+3. Manual step: the user adds two permission `ask` rules, `Bash(node *dfly.js*--yes*)` and
+   `PowerShell(node *dfly.js*--yes*)`, to user-level `~/.claude/settings.json` (the installer prints these; it does
+   not edit settings) so Claude Code prompts again on every write, in every project, even if a skill misbehaves —
+   whichever tool it uses to run the command.
 
 ## Error handling
 

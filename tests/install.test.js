@@ -2,7 +2,18 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { renderSkill, SKILLS_DIR } from '../scripts/install.js';
+import { ASK_RULES, isMainModule, renderSkill, skillDirNames, SKILLS_DIR } from '../scripts/install.js';
+
+function globToRegExp(glob) {
+  const escaped = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
+}
+
+function innerGlob(rule) {
+  const m = rule.match(/^(?:Bash|PowerShell)\((.*)\)$/);
+  assert.ok(m, `rule "${rule}" should be wrapped in Bash(...) or PowerShell(...)`);
+  return m[1];
+}
 
 test('renderSkill replaces every placeholder', () => {
   const out = renderSkill('node "{{DFLY}}" x --file "{{DATA_DIR}}/a" "{{DATA_DIR}}/b"', {
@@ -21,4 +32,49 @@ test('every skill template has frontmatter, a --yes command, and an approval gua
     assert.match(text, /node "\{\{DFLY\}\}" .*--yes/, name);
     assert.match(text, /Never run a command with `--yes` without an explicit \*\*Approve\*\*/, name);
   }
+});
+
+test('ASK_RULES cover both Bash and PowerShell', () => {
+  assert.deepEqual(ASK_RULES, ['Bash(node *dfly.js*--yes*)', 'PowerShell(node *dfly.js*--yes*)']);
+});
+
+test('every rendered --yes command line matches every ASK_RULES pattern', () => {
+  const dfly = 'C:/repo/bin/dfly.js';
+  const dataDir = 'C:/repo/.dfly';
+  const regexes = ASK_RULES.map((rule) => globToRegExp(innerGlob(rule)));
+  const names = readdirSync(SKILLS_DIR);
+
+  let checked = 0;
+  for (const name of names) {
+    const template = readFileSync(join(SKILLS_DIR, name, 'SKILL.md'), 'utf8');
+    const rendered = renderSkill(template, { dfly, dataDir });
+    const yesLines = rendered.split(/\r?\n/).filter((line) => line.includes('node "') && line.includes('--yes'));
+    assert.ok(yesLines.length > 0, `${name}: expected at least one rendered --yes command line`);
+    for (const line of yesLines) {
+      const trimmed = line.trim();
+      for (const re of regexes) {
+        assert.match(trimmed, re, `${name}: "${trimmed}" should match ${re}`);
+      }
+      checked++;
+    }
+  }
+  assert.ok(checked > 0);
+});
+
+test('skillDirNames keeps only directory entries', () => {
+  const entries = [
+    { name: 'plan-feature', isDirectory: () => true },
+    { name: 'done-tasks', isDirectory: () => true },
+    { name: '.DS_Store', isDirectory: () => false },
+    { name: 'notes.txt', isDirectory: () => false },
+  ];
+  assert.deepEqual(skillDirNames(entries), ['plan-feature', 'done-tasks']);
+});
+
+test('isMainModule compares case-insensitively on win32 and case-sensitively elsewhere', () => {
+  const url = 'file:///C:/repo/scripts/install.js';
+  assert.equal(isMainModule('C:/repo/scripts/INSTALL.JS', url, 'win32'), true);
+  assert.equal(isMainModule('C:/repo/scripts/INSTALL.JS', url, 'linux'), false);
+  assert.equal(isMainModule('C:/repo/scripts/install.js', url, 'linux'), true);
+  assert.equal(isMainModule(undefined, url, 'win32'), false);
 });

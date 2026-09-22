@@ -31,7 +31,7 @@ description: Draft an end-of-day report from today's OpenProject activity and po
    - Add short notes from this conversation's work where they help.
    - If blockers or tomorrow's plan are unknown, ask the user in one question before drafting.
 3. Show the exact final text, then ask with AskUserQuestion: **Approve**, **Edit**, **Cancel**.
-4. Only after **Approve**, write the text to `{{DATA_DIR}}/report.md` and run:
+4. Only after **Approve**, write the text to `{{DATA_DIR}}/report.md`. If writing the file fails for any reason, stop and tell the user — never run the `--yes` command. Otherwise run:
 
    ```bash
    node "{{DFLY}}" talk:post --file "{{DATA_DIR}}/report.md" --yes

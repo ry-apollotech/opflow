@@ -13,8 +13,13 @@ Nothing is written without your approval.
    - `NC_TALK_ROOM`: open the Talk room; the token is the part after `/call/` in the URL.
 3. Make sure the **User Story** type is enabled in the OpenProject project (Project settings → Work package types).
 4. `node bin/dfly.js check` — every line should say `OK`.
-5. `npm run install-skills` — installs `/plan-feature`, `/done-tasks`, `/report-day` into `~/.claude/skills`.
-6. Add `"Bash(node *dfly.js *--yes*)"` to `permissions.ask` in `~/.claude/settings.json`.
+5. `npm run install-skills` — installs `/plan-feature`, `/done-tasks`, `/report-day` into `~/.claude/skills`, and prints
+   the permission rules below.
+6. Manual step (the installer only prints these; it does not edit your settings) — add both of these to
+   `permissions.ask` in `~/.claude/settings.json`, so every write asks first whether Claude Code runs the command
+   with the Bash tool or, on Windows, the PowerShell tool:
+   - `"Bash(node *dfly.js*--yes*)"`
+   - `"PowerShell(node *dfly.js*--yes*)"`
 
 ## Daily use (in any project, in Claude Code)
 
