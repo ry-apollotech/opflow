@@ -72,7 +72,7 @@ README.md                 setup + usage
   "bin": { "dfly": "bin/dfly.js" },
   "engines": { "node": ">=18" },
   "scripts": {
-    "test": "node --test tests/",
+    "test": "node --test",
     "install-skills": "node scripts/install.js"
   }
 }
@@ -155,7 +155,7 @@ test('loadConfig works without a file when env has everything', () => {
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: FAIL — `Cannot find module '.../src/config.js'`
 
 - [ ] **Step 4: Implement** — `src/config.js`
@@ -213,7 +213,7 @@ export function loadConfig(path, env = process.env) {
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: 5 tests PASS
 
 - [ ] **Step 6: Commit**
@@ -333,7 +333,7 @@ test('requestJson falls back to the raw text for non-JSON errors', async () => {
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: FAIL — `Cannot find module '.../src/http.js'`
 
 - [ ] **Step 4: Implement** — `src/http.js`
@@ -387,7 +387,7 @@ export async function requestJson(fetchFn, { method = 'GET', url, headers = {}, 
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: all PASS (config + http)
 
 - [ ] **Step 6: Commit**
@@ -484,7 +484,7 @@ test('validateTasks rejects bad input', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: FAIL — `Cannot find module '.../src/payloads.js'`
 
 - [ ] **Step 3: Implement** — `src/payloads.js`
@@ -536,7 +536,7 @@ export function validateTasks(value) {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: all PASS
 
 - [ ] **Step 5: Commit**
@@ -667,7 +667,7 @@ test('listUpdatedToday falls back to a date range when "t" is rejected', async (
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: FAIL — `Cannot find module '.../src/openproject.js'`
 
 - [ ] **Step 3: Implement** — `src/openproject.js`
@@ -735,7 +735,7 @@ export function createOpenProjectClient({ url, apiKey, project }, fetchFn = fetc
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: all PASS
 
 - [ ] **Step 5: Commit**
@@ -809,7 +809,7 @@ test('postMessage validates before calling the API', async () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: FAIL — `Cannot find module '.../src/talk.js'`
 
 - [ ] **Step 3: Implement** — `src/talk.js`
@@ -855,7 +855,7 @@ export function createTalkClient({ url, user, appPassword, room }, fetchFn = fet
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: all PASS
 
 - [ ] **Step 5: Commit**
@@ -919,7 +919,7 @@ test('formatGroups renders a readable list', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: FAIL — `Cannot find module '.../src/report.js'`
 
 - [ ] **Step 3: Implement** — `src/report.js`
@@ -951,7 +951,7 @@ export function formatGroups(groups) {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: all PASS
 
 - [ ] **Step 5: Commit**
@@ -1168,7 +1168,7 @@ test('check reports each item and returns 1 if any fail', async () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: FAIL — `Cannot find module '.../src/cli.js'`
 
 - [ ] **Step 3: Implement** — `src/cli.js`
@@ -1327,7 +1327,7 @@ export async function run(argv, deps) {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: all PASS
 
 - [ ] **Step 5: Write the entry point** — `bin/dfly.js`
@@ -1526,7 +1526,7 @@ test('every skill template has frontmatter, a --yes command, and an approval gua
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: FAIL — `Cannot find module '.../scripts/install.js'`
 
 - [ ] **Step 4: Implement** — `scripts/install.js`
@@ -1571,7 +1571,7 @@ if (process.argv[1] && toPosix(process.argv[1]) === toPosix(fileURLToPath(import
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: all PASS
 
 - [ ] **Step 6: Write `README.md`**
@@ -1660,7 +1660,7 @@ Expected: `DRY RUN: 1 User Story(s) would be created and assigned to <name>` and
 
 - [ ] **Step 7: Final test run**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: all PASS.
 
 Run: `git status --short`
