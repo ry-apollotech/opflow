@@ -6,7 +6,7 @@
   "bin": { "dfly": "bin/dfly.js" },
   "engines": { "node": ">=18" },
   "scripts": {
-    "test": "node --test tests/",
+    "test": "node --test",
     "install-skills": "node scripts/install.js"
   }
 }
