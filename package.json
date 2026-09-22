@@ -1,0 +1,12 @@
+{
+  "name": "dfly",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": { "dfly": "bin/dfly.js" },
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test tests/",
+    "install-skills": "node scripts/install.js"
+  }
+}
