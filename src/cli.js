@@ -33,6 +33,10 @@ function requireFile(opts) {
   return opts.file;
 }
 
+function stripBOM(text) {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
 async function check(_opts, { op, talk, log }) {
   let ok = true;
   const step = async (label, fn) => {
@@ -51,8 +55,9 @@ async function check(_opts, { op, talk, log }) {
   return ok ? 0 : 1;
 }
 
-async function opCreate(opts, { op, readFile, log }) {
-  const tasks = validateTasks(JSON.parse(await readFile(requireFile(opts))));
+async function opCreate(opts, { op, readFile, log, removeFile }) {
+  const file = requireFile(opts);
+  const tasks = validateTasks(JSON.parse(stripBOM(await readFile(file))));
   const [me, type] = await Promise.all([op.me(), op.resolveType(TYPE_NAME)]);
   const ids = { typeId: type.id, assigneeId: me.id };
 
@@ -75,6 +80,8 @@ async function opCreate(opts, { op, readFile, log }) {
       return 1;
     }
   }
+  await removeFile(file);
+  log(`Removed ${file}.`);
   return 0;
 }
 
@@ -112,8 +119,9 @@ async function opToday(opts, { op, log, today }) {
   return 0;
 }
 
-async function talkPost(opts, { talk, readFile, log }) {
-  const message = validateMessage(await readFile(requireFile(opts)));
+async function talkPost(opts, { talk, readFile, log, removeFile }) {
+  const file = requireFile(opts);
+  const message = validateMessage(await readFile(file));
   if (!opts.yes) {
     log('DRY RUN: this message would be posted. Re-run with --yes to post.');
     log('---');
@@ -122,6 +130,8 @@ async function talkPost(opts, { talk, readFile, log }) {
   }
   const posted = await talk.postMessage(message);
   log(`Posted to Talk (message id ${posted.id}).`);
+  await removeFile(file);
+  log(`Removed ${file}.`);
   return 0;
 }
 

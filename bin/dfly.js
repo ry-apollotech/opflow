@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFile } from 'node:fs/promises';
+import { readFile, unlink } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { run, USAGE } from '../src/cli.js';
 import { loadConfig } from '../src/config.js';
@@ -18,6 +18,7 @@ if (!argv.length || argv[0] === 'help' || argv[0] === '--help') {
       op: createOpenProjectClient(config.op),
       talk: createTalkClient(config.nc),
       readFile: (path) => readFile(path, 'utf8'),
+      removeFile: (path) => unlink(path),
       log: (line) => console.log(line),
       today: localDate(),
     });

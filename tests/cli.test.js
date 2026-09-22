@@ -5,6 +5,7 @@ import { run, parseArgs, USAGE } from '../src/cli.js';
 function setup({ files = {}, op: opOverrides = {}, talk: talkOverrides = {} } = {}) {
   const calls = [];
   const lines = [];
+  const removedFiles = [];
   const op = {
     me: async () => ({ id: 3, name: 'Ryan' }),
     project: async () => ({ id: 1, name: 'Demo' }),
@@ -41,9 +42,10 @@ function setup({ files = {}, op: opOverrides = {}, talk: talkOverrides = {} } = 
       return files[path];
     },
     log: (line) => lines.push(line),
+    removeFile: async (path) => { removedFiles.push(path); },
     today: '2026-09-22',
   };
-  return { deps, calls, lines, output: () => lines.join('\n') };
+  return { deps, calls, lines, removedFiles, output: () => lines.join('\n') };
 }
 
 const tasksFile = { 't.json': JSON.stringify([{ subject: 'A', description: 'a' }, { subject: 'B' }]) };
@@ -76,7 +78,19 @@ test('op:create --yes creates each task assigned to me', async () => {
     ['create', 'A', { typeId: 7, assigneeId: 3 }],
     ['create', 'B', { typeId: 7, assigneeId: 3 }],
   ]);
-  assert.equal(s.output(), '#101 A\n#102 B');
+  assert.equal(s.output(), '#101 A\n#102 B\nRemoved t.json.');
+});
+
+test('op:create --yes removes the input file after a fully successful write', async () => {
+  const s = setup({ files: tasksFile });
+  assert.equal(await run(['op:create', '--file', 't.json', '--yes'], s.deps), 0);
+  assert.deepEqual(s.removedFiles, ['t.json']);
+});
+
+test('op:create without --yes does not remove the input file', async () => {
+  const s = setup({ files: tasksFile });
+  assert.equal(await run(['op:create', '--file', 't.json'], s.deps), 0);
+  assert.deepEqual(s.removedFiles, []);
 });
 
 test('op:create stops on failure and reports what was and was not created', async () => {
@@ -93,6 +107,13 @@ test('op:create stops on failure and reports what was and was not created', asyn
   });
   assert.equal(await run(['op:create', '--file', 't.json', '--yes'], s.deps), 1);
   assert.equal(s.output(), '#201 A\nFAILED on "B": boom\nCreated before failure: #201\nNot created: B | C');
+  assert.deepEqual(s.removedFiles, []);
+});
+
+test('op:create strips a UTF-8 BOM before parsing JSON', async () => {
+  const s = setup({ files: { 't.json': '﻿' + JSON.stringify([{ subject: 'A' }]) } });
+  assert.equal(await run(['op:create', '--file', 't.json', '--yes'], s.deps), 0);
+  assert.deepEqual(s.calls, [['create', 'A', { typeId: 7, assigneeId: 3 }]]);
 });
 
 test('op:create requires --file and valid tasks', async () => {
@@ -154,13 +175,20 @@ test('talk:post without --yes prints the message and posts nothing', async () =>
   assert.equal(await run(['talk:post', '--file', 'r.md'], s.deps), 0);
   assert.equal(s.calls.length, 0);
   assert.equal(s.output(), 'DRY RUN: this message would be posted. Re-run with --yes to post.\n---\nHello team');
+  assert.deepEqual(s.removedFiles, []);
 });
 
 test('talk:post --yes posts the trimmed message', async () => {
   const s = setup({ files: { 'r.md': '\nHello team\n' } });
   assert.equal(await run(['talk:post', '--file', 'r.md', '--yes'], s.deps), 0);
   assert.deepEqual(s.calls, [['post', 'Hello team']]);
-  assert.equal(s.output(), 'Posted to Talk (message id 42).');
+  assert.equal(s.output(), 'Posted to Talk (message id 42).\nRemoved r.md.');
+});
+
+test('talk:post --yes removes the input file after posting', async () => {
+  const s = setup({ files: { 'r.md': '\nHello team\n' } });
+  assert.equal(await run(['talk:post', '--file', 'r.md', '--yes'], s.deps), 0);
+  assert.deepEqual(s.removedFiles, ['r.md']);
 });
 
 test('talk:post rejects an empty file even in dry run', async () => {
