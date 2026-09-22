@@ -45,3 +45,12 @@ test('loadConfig reads the file and lets env override it', () => {
 test('loadConfig works without a file when env has everything', () => {
   assert.equal(loadConfig(join(tmpdir(), 'does-not-exist.env'), full).op.apiKey, 'k');
 });
+
+test('loadConfig ignores empty-string env values and keeps the .env file value', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dfly-'));
+  const file = join(dir, '.env');
+  writeFileSync(file, Object.entries(full).map(([k, v]) => `${k}=${v}`).join('\n'));
+  const config = loadConfig(file, { OP_PROJECT: '', NC_USER: 'other' });
+  assert.equal(config.op.project, 'demo');
+  assert.equal(config.nc.user, 'other');
+});

@@ -44,5 +44,6 @@ export function buildConfig(env) {
 
 export function loadConfig(path, env = process.env) {
   const fromFile = existsSync(path) ? parseEnv(readFileSync(path, 'utf8')) : {};
-  return buildConfig({ ...fromFile, ...env });
+  const overrides = Object.fromEntries(Object.entries(env).filter(([, value]) => value !== undefined && value !== ''));
+  return buildConfig({ ...fromFile, ...overrides });
 }
