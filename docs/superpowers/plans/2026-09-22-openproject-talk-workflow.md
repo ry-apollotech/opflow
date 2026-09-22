@@ -1561,7 +1561,7 @@ async function main() {
   }
 
   console.log('\nAdd this to "permissions.ask" in ~/.claude/settings.json so every write asks first:');
-  console.log('  "Bash(node *dfly.js *--yes*)"');
+  console.log('  "Bash(node *dfly.js*--yes*)` / `PowerShell(node *dfly.js*--yes*)"');
 }
 
 if (process.argv[1] && toPosix(process.argv[1]) === toPosix(fileURLToPath(import.meta.url))) {
@@ -1593,7 +1593,7 @@ Nothing is written without your approval.
 3. Make sure the **User Story** type is enabled in the OpenProject project (Project settings → Work package types).
 4. `node bin/dfly.js check` — every line should say `OK`.
 5. `npm run install-skills` — installs `/plan-feature`, `/done-tasks`, `/report-day` into `~/.claude/skills`.
-6. Add `"Bash(node *dfly.js *--yes*)"` to `permissions.ask` in `~/.claude/settings.json`.
+6. Add `"Bash(node *dfly.js*--yes*)` / `PowerShell(node *dfly.js*--yes*)"` to `permissions.ask` in `~/.claude/settings.json`.
 
 ## Daily use (in any project, in Claude Code)
 
@@ -1643,7 +1643,7 @@ Expected: five `OK` lines. If `Type "User Story"` fails, the message lists avail
 Run: `npm run install-skills`
 Expected: three `Installed /<name>` lines.
 
-- [ ] **Step 4: Add the permission ask rule** — with the user's approval, add `"Bash(node *dfly.js *--yes*)"` to `permissions.ask` in `~/.claude/settings.json` (use the `update-config` skill).
+- [ ] **Step 4: Add the permission ask rule** — with the user's approval, add `"Bash(node *dfly.js*--yes*)` / `PowerShell(node *dfly.js*--yes*)"` to `permissions.ask` in `~/.claude/settings.json` (use the `update-config` skill).
 
 - [ ] **Step 5: Dry run**
 
