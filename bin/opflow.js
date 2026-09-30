@@ -6,6 +6,7 @@ import { loadUserConfig, opflowHome, preferencesFile } from '../src/home.js';
 import { createOpenProjectClient } from '../src/openproject.js';
 import { localDate } from '../src/payloads.js';
 import { loadPreferences, planRules } from '../src/preferences.js';
+import { createTerminalPrompter, runSetup } from '../src/setup.js';
 import { createTalkClient } from '../src/talk.js';
 
 const argv = process.argv.slice(2);
@@ -29,8 +30,20 @@ async function setup() {
     console.error(`setup needs a terminal. Run it in your own terminal:\n  node "${self}" setup`);
     return 1;
   }
-  console.error('setup is not available yet');
-  return 1;
+  const prompter = createTerminalPrompter(process.stdin, process.stdout);
+  try {
+    return await runSetup({
+      home,
+      root: fileURLToPath(new URL('..', import.meta.url)),
+      prompter,
+      log: (line) => console.log(line),
+      runCheck: () => run(['check'], cliDeps(loadUserConfig(home))),
+      keepPreferences: argv.includes('--keep-preferences'),
+      migrateFrom: process.env.OPFLOW_MIGRATE_FROM || null,
+    });
+  } finally {
+    prompter.close();
+  }
 }
 
 async function main() {
