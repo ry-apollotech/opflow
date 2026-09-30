@@ -1,5 +1,5 @@
 // SessionStart hook: reminds Claude that the opflow skills exist without ever running them.
-import { isMainModule } from './install.js';
+import { isMainModule } from '../src/main-module.js';
 
 export const REMINDER = [
   'opflow (OpenProject + Nextcloud Talk) is available. Mention it once, in one short line at the end of your first reply:',

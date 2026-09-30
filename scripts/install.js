@@ -4,7 +4,7 @@ import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
-import { DEFAULTS, QUESTIONS, askPreferences, loadPreferences, planRules, savePreferences } from './preferences.js';
+import { DEFAULTS, QUESTIONS, askPreferences, loadPreferences, planRules, savePreferences } from '../src/preferences.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 export const SKILLS_DIR = join(ROOT, 'skills');

@@ -11,7 +11,7 @@ import {
   normalizePreferences,
   planRules,
   savePreferences,
-} from '../scripts/preferences.js';
+} from '../src/preferences.js';
 
 test('there are three questions and each default is one of its options', () => {
   assert.deepEqual(QUESTIONS.map((q) => q.key), ['testing', 'size', 'docs']);
