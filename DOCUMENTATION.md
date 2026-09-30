@@ -62,7 +62,7 @@ The plugin is installed **user-wide**, so the commands work in any project you o
 In Claude Code:
 
 ```
-/plugin marketplace add <owner>/opflow
+/plugin marketplace add ry-apollotech/opflow
 /plugin install opflow@opflow
 ```
 

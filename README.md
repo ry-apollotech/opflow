@@ -12,7 +12,7 @@ Everyone uses **their own** OpenProject and Nextcloud accounts. Full reference: 
 In Claude Code:
 
 ```
-/plugin marketplace add <owner>/opflow
+/plugin marketplace add ry-apollotech/opflow
 /plugin install opflow@opflow
 /opflow:setup
 ```
