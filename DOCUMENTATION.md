@@ -10,7 +10,7 @@ waits for your approval first.**
 ## 1. How it works
 
 ```
- You: "/plan-feature add CSV export"
+ You: "/opflow:plan-feature add CSV export"
         │
         ▼
  Claude drafts 3–10 User Stories ──► you: Approve / Edit / Cancel
@@ -20,14 +20,14 @@ waits for your approval first.**
         │
    ... Claude builds the feature ...
         │
- You: "/done-tasks"
+ You: "/opflow:done-tasks"
         ▼
  Claude proposes finished stories ──► you: Approve / Edit / Cancel
         │ Approve
         ▼
  opflow op:done --yes ──► OpenProject: status = Closed
         │
- You: "/report-day"
+ You: "/opflow:report-day"
         ▼
  Claude drafts the daily report ──► you: Approve / Edit / Cancel
         │ Approve
@@ -40,9 +40,9 @@ Two parts:
 | Part | What it is | Where |
 |---|---|---|
 | **`opflow` CLI** | Zero-dependency Node.js script that talks to the OpenProject API v3 and the Nextcloud Talk (OCS) API. | `bin/opflow.js`, `src/` |
-| **Claude Code skills** | `/plan-feature`, `/done-tasks`, `/report-day` — instructions that tell Claude how to draft, ask for approval, and call the CLI. | templates in `skills/`, installed to `~/.claude/skills/` |
+| **Claude Code plugin** | `/opflow:setup`, `/opflow:plan-feature`, `/opflow:done-tasks`, `/opflow:report-day` — skills that tell Claude how to draft, ask for approval, and call the CLI — plus a session reminder hook. | `.claude-plugin/`, `skills/`, `hooks/` |
 
-The skills are installed **user-wide**, so they work in any project you open in Claude Code.
+The plugin is installed **user-wide**, so the commands work in any project you open in Claude Code. They only run when you type them.
 
 ---
 
@@ -57,36 +57,81 @@ The skills are installed **user-wide**, so they work in any project you open in 
 
 ## 3. Setup
 
-### 3.1 Create `.env`
+### 3.1 Install the plugin
 
-Copy the example and fill it in (the file is git-ignored — never commit it):
+In Claude Code:
 
-```bash
-cp .env.example .env
+```
+/plugin marketplace add <owner>/opflow
+/plugin install opflow@opflow
 ```
 
-| Key | What to put | Where to find it |
-|---|---|---|
-| `OP_URL` | Your OpenProject base URL, e.g. `https://openproject.example.com` | Browser address bar |
-| `OP_API_KEY` | Personal API token | OpenProject → avatar → **My account** → **Access tokens** → API → generate |
-| `OP_PROJECT` | Project identifier (or numeric id) | The project URL: `/projects/<identifier>` |
-| `OP_BACKLOG` | Name of your team's backlog version, e.g. `Backlog: Android POS` (needed by `op:create`) | OpenProject → project → **Backlogs** |
-| `NC_URL` | Your Nextcloud base URL, e.g. `https://cloud.example.com` | Browser address bar |
-| `NC_USER` | Your Nextcloud username | Nextcloud profile |
-| `NC_APP_PASSWORD` | An app password (not your login password) | Nextcloud → **Settings** → **Security** → **Devices & sessions** → create app password |
-| `NC_TALK_ROOM` | Room token | Open the Talk room; the token is the part after `/call/` in the URL |
+The repo is private, so your git must already be able to clone it (e.g. `gh auth login`). Updates arrive with
+`/plugin update opflow`, or automatically if auto-update is on for the marketplace.
 
-Environment variables with the same names override `.env` values (empty ones are ignored).
-`.env` is always read from the repo folder, no matter which directory you run `opflow` from.
+### 3.2 Run setup
 
-### 3.2 Enable the User Story type
+Type `/opflow:setup`. Claude explains what's needed and shows the command to run **in your own terminal**:
+
+```bash
+node "<plugin folder>/bin/opflow.js" setup
+```
+
+It needs a real terminal so it can hide what you type for secrets. It asks, in order:
+
+| Value | Where to find it |
+|---|---|
+| OpenProject URL | Your OpenProject base URL, e.g. `https://openproject.example.com` |
+| OpenProject API token (hidden) | OpenProject → avatar → **My account** → **Access tokens** → API → generate |
+| Project identifier (or numeric id) | The project URL: `/projects/<identifier>` |
+| Backlog version name | OpenProject → project → **Backlogs**, e.g. `Backlog: Android POS` (where overflow stories go) |
+| Nextcloud URL | Your Nextcloud base URL, e.g. `https://cloud.example.com` |
+| Nextcloud username | Nextcloud profile (login name) |
+| Nextcloud app password (hidden) | Nextcloud → **Settings** → **Security** → **Devices & sessions** → create app password |
+| Talk room token | Open the Talk room; the token is the part after `/call/` in the URL |
+
+After the values, setup does four more things:
+1. It asks three questions about how `/opflow:plan-feature` breaks work into tickets:
+
+   | Question | Options (first is the default) |
+   |---|---|
+   | Unit tests / testing work | In acceptance criteria · Excluded · Separate ticket per feature |
+   | Ticket size | Balanced (2–4 pts, max 8) · Fewer, bigger (mostly 4 pts, max 5) · Detailed (1–2 pts, technical tasks allowed, max 10) |
+   | Docs and deployment work | In acceptance criteria · Excluded · Separate tickets |
+
+   Every option keeps the same basics: each ticket is one outcome a PM can check, there are no tickets for code
+   review or refactoring on their own, and a final merge/split pass runs before you see the table.
+2. It creates your report template, if you don't have one yet.
+3. It runs `check`.
+4. It prints the approval rules from 3.5.
+
+**Re-running setup:**
+- Run it any time. Pressing Enter keeps each current value; secrets are shown masked as `****1234`.
+- `--keep-preferences` skips the three questions.
+- If you used an earlier version with a `.env` in the repo folder, setup offers it as the starting values.
+
+Everything is saved in your own folder, `~/.opflow/`. Plugin updates never touch it:
+
+| File | What it is |
+|---|---|
+| `.env` | your credentials (mode 600) |
+| `preferences.json` | your ticket-breakdown answers |
+| `report-template.md` | your `/opflow:report-day` format |
+| `tasks.json`, `report.md` | working files, deleted after a successful write |
+
+Set `OPFLOW_HOME` to use a different folder. Environment variables named like the `.env` keys (`OP_URL`,
+`OP_API_KEY`, …) override the file; empty ones are ignored.
+
+### 3.3 Enable the User Story type
 
 OpenProject → your project → **Project settings** → **Work package types** → tick **User Story**.
 
-### 3.3 Verify access (read-only)
+### 3.4 Verify access (read-only)
+
+Setup runs this for you at the end. To run it again, use `/opflow:setup` step 3, or:
 
 ```bash
-node bin/opflow.js check
+node "<plugin folder>/bin/opflow.js" check
 ```
 
 Expected:
@@ -103,33 +148,7 @@ OK    Talk room: <room name>
 
 Any `FAIL` line tells you what's wrong — see [Troubleshooting](#8-troubleshooting).
 
-### 3.4 Install the skills
-
-```bash
-npm run install-skills
-```
-
-This writes `/plan-feature`, `/done-tasks` and `/report-day` into `~/.claude/skills/`, with the absolute path to
-this repo's `bin/opflow.js` filled in, and creates the git-ignored `.opflow/` working folder. It also creates your
-personal `report-template.md` from `report-template.example.md` if you don't have one yet; it never overwrites it.
-
-The first run also asks three questions about how `/plan-feature` breaks work into tickets:
-
-| Question | Options (first is the default) |
-|---|---|
-| Unit tests / testing work | In acceptance criteria · Excluded · Separate ticket per feature |
-| Ticket size | Balanced (2–4 pts, max 8) · Fewer, bigger (mostly 4 pts, max 5) · Detailed (1–2 pts, technical tasks allowed, max 10) |
-| Docs and deployment work | In acceptance criteria · Excluded · Separate tickets |
-
-Answers are saved in `.opflow/preferences.json` (git-ignored) and written into your installed `/plan-feature`.
-Later runs reuse them. `npm run install-skills -- --reconfigure` asks again. With no terminal to ask in, the
-defaults are used. Every option keeps the same basics: each ticket is one outcome a PM can check, no tickets for
-code review or refactoring on their own, and a final merge/split pass before you see the table.
-
-> Because the installed skills point at this folder's absolute path, **don't move or delete this folder**
-> without re-running `npm run install-skills` from the new location.
-
-### 3.5 Add the permission rules (manual)
+### 3.5 Add the permission rules (recommended)
 
 Add both rules to `permissions.ask` in `~/.claude/settings.json`:
 
@@ -144,29 +163,14 @@ Add both rules to `permissions.ask` in `~/.claude/settings.json`:
 }
 ```
 
-With these, Claude Code asks you again before **any** `opflow` write command runs — whichever shell tool it uses.
-The installer only prints these rules; it never edits your settings.
+With these, Claude Code asks you again before **any** `opflow` write command runs, whichever shell tool it uses.
+Plugins can't change your permissions, so this step is manual.
 
-### 3.6 Session reminder (optional)
+### 3.6 Session reminder
 
-The skills only run when you type them (`disable-model-invocation: true`), so Claude never starts them on its own
-during other work. To get a one-line reminder of them at the start of each new session, add this `SessionStart`
-hook to `~/.claude/settings.json`. `npm run install-skills` prints it with your absolute path filled in:
-
-```json
-{
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup",
-        "hooks": [{ "type": "command", "command": "node \"<this folder>/scripts/session-reminder.js\"" }]
-      }
-    ]
-  }
-}
-```
-
-The hook only gives Claude the reminder text. It runs nothing against OpenProject or Talk.
+The plugin includes a `SessionStart` hook, so there's nothing to set up. At the start of each new session, Claude
+mentions the opflow commands once, in one line. Until you've run setup, it only mentions `/opflow:setup`. The hook
+only gives Claude that text; it never runs anything against OpenProject or Talk.
 
 ---
 
@@ -174,10 +178,10 @@ The hook only gives Claude the reminder text. It runs nothing against OpenProjec
 
 Run these in Claude Code, in whatever project you're working on.
 
-### `/plan-feature <description>`
+### `/opflow:plan-feature <description>`
 
 ```
-/plan-feature add CSV export to the invoices page
+/opflow:plan-feature add CSV export to the invoices page
 ```
 
 1. Claude breaks the feature into User Stories in priority order, following your ticket-breakdown answers from
@@ -193,15 +197,15 @@ Run these in Claude Code, in whatever project you're working on.
    in its sprint or backlog version, with **Estimated time** = points × 2h, and you get back
    `#id subject -> version` for each one.
 
-### `/done-tasks`
+### `/opflow:done-tasks`
 
 1. Claude lists your work packages updated today (or the ids you name).
 2. It proposes which ones are finished, with a reason for each.
 3. On **Approve**, they're set to **Closed**.
 
-### `/report-day`
+### `/opflow:report-day`
 
-1. Claude pulls today's activity and fills in your report template (`report-template.md`). With the default
+1. Claude pulls today's activity and fills in your report template (`~/.opflow/report-template.md`). With the default
    template, the result looks like this:
 
    ```markdown
@@ -223,11 +227,11 @@ Run these in Claude Code, in whatever project you're working on.
    **Done** = status Closed; **In progress** = everything else. If it doesn't know your blockers or plan for
    tomorrow, it asks you first.
 
-   **Changing the format:** edit `report-template.md` in the opflow folder. It's plain Markdown that Talk renders.
+   **Changing the format:** edit `~/.opflow/report-template.md`. It's plain Markdown that Talk renders.
    You can rename, reorder, add or remove sections and change the title. `{{date}}` becomes today's date, and
    `<!-- comments -->` are instructions for Claude, e.g. `<!-- one line per task, no ticket numbers -->`. They are
    followed but never posted. The file is git-ignored, so each dev keeps their own format. To start over, delete it
-   and run `npm run install-skills`.
+   and re-run `/opflow:setup`.
 2. You see the exact text and choose **Approve**, **Edit** or **Cancel**.
 3. On **Approve**, it's posted to your Talk room.
 
@@ -310,7 +314,7 @@ Nothing reaches OpenProject or Nextcloud without your explicit OK:
 1. **The skills** always show the exact content and wait for **Approve** before running any `--yes` command.
    If writing the input file fails, they stop instead of running the command.
 2. **The CLI** refuses to write without `--yes` — the default is always a dry run.
-3. **Claude Code permissions** — the `ask` rules from [3.5](#35-add-the-permission-rules-manual) make Claude Code
+3. **Claude Code permissions** — the `ask` rules from [3.5](#35-add-the-permission-rules-recommended) make Claude Code
    prompt you before any `opflow … --yes` command runs, even if a skill misbehaves.
 
 Secrets are never printed: error messages show only the HTTP method, URL path and status, and `check` prints
@@ -321,7 +325,9 @@ names and ids only.
 ## 7. Files and folders
 
 ```
-bin/opflow.js         CLI entry point (loads .env, wires the API clients)
+.claude-plugin/       plugin.json + marketplace.json (the repo is its own marketplace)
+hooks/hooks.json      SessionStart reminder hook
+bin/opflow.js         CLI entry point (loads ~/.opflow/.env, wires the API clients; setup, plan:rules)
 src/cli.js            command parsing and the five commands
 src/config.js         .env loading and validation
 src/http.js           shared JSON HTTP helper + readable error messages
@@ -329,13 +335,15 @@ src/payloads.js       OpenProject request bodies, filters, tasks.json validation
 src/openproject.js    OpenProject API v3 client
 src/talk.js           Nextcloud Talk client
 src/report.js         groups work packages by status
-scripts/install.js    renders skills/ into ~/.claude/skills
-scripts/session-reminder.js  optional SessionStart hook: one-line reminder of the skills
-skills/               skill templates (plan-feature, done-tasks, report-day)
+src/home.js           ~/.opflow location and config loading
+src/setup.js          interactive setup
+src/preferences.js    ticket-breakdown questions and rules
+src/main-module.js    "is this file being run directly" check
+scripts/session-reminder.js  the reminder text for the SessionStart hook
+skills/               plugin skills (setup, plan-feature, done-tasks, report-day)
+report-template.example.md  default /opflow:report-day format
 tests/                node:test unit tests (APIs are mocked — no network)
-.env                  your credentials (git-ignored)
-.opflow/              working files tasks.json / report.md (git-ignored)
-report-template.md    your /report-day format (git-ignored; from report-template.example.md)
+~/.opflow/            your credentials, preferences, report template and working files (outside the repo)
 docs/superpowers/     design spec and implementation plan
 ```
 
@@ -363,7 +371,9 @@ your username and app password, plus the `OCS-APIRequest: true` header.
 
 | Symptom | Cause / fix |
 |---|---|
-| `Error: Missing config keys: …` | `.env` is missing or incomplete. It must be in the repo folder (next to `package.json`). |
+| `Error: opflow is not set up. …` | Run `/opflow:setup`. |
+| `setup needs a terminal` | Run the printed command in your own terminal, not with `!` inside Claude Code. |
+| `Error: Missing config keys: …` | `~/.opflow/.env` is incomplete. Re-run setup. |
 | `FAIL OpenProject user: … 401` | Wrong or revoked `OP_API_KEY`, or wrong `OP_URL`. |
 | `FAIL OpenProject project: … 404` | `OP_PROJECT` is wrong, or you're not a member of that project. |
 | `Type "User Story" not found. Available: …` | Enable User Story in the project's settings (see 3.2), or check the spelling of the type name on your instance. |
@@ -374,8 +384,7 @@ your username and app password, plus the `OCS-APIRequest: true` header.
 | `FAIL Talk room: … 404` | Wrong `NC_TALK_ROOM` token, or you're not in that room. |
 | `422 …` on create | You can't be assigned in that project, or a required custom field is missing. |
 | `422 …` on close | The project's workflow doesn't allow moving to Closed from the current status for your role. |
-| `/plan-feature` etc. not found in Claude Code | Run `npm run install-skills` and restart the Claude Code session. |
-| Skills stopped working after moving the folder | Re-run `npm run install-skills` from the new location. |
+| `/opflow:plan-feature` etc. not found in Claude Code | Open `/plugin`, check that opflow is installed and enabled, then restart the Claude Code session. |
 | No approval prompt from Claude Code before writes | The `ask` rules from 3.5 aren't in `~/.claude/settings.json`. |
 
 ---
@@ -389,13 +398,15 @@ npm test            # runs all unit tests (node --test), no network needed
 - ES modules, Node's built-in `fetch`, `node:test` and `node:assert` — no dependencies.
 - API clients take an injectable `fetch`; the CLI's `run(argv, deps)` takes injectable clients, file reader,
   file remover and logger, so every command is tested without touching real services.
-- After changing a skill template in `skills/`, re-run `npm run install-skills`.
+- To try changes, add your clone as a marketplace (`claude plugin marketplace add <clone path>`) and install
+  `opflow@opflow`; `claude plugin validate .` checks the manifests.
+- Bump `version` in both `package.json` and `.claude-plugin/plugin.json` for each release.
 
 ---
 
 ## 10. Known limitations
 
-- `/done-tasks` only sees stories **updated today**; for older ones, name the ids (`/done-tasks 101 102`).
+- `/opflow:done-tasks` only sees stories **updated today**; for older ones, name the ids (`/opflow:done-tasks 101 102`).
 - `op:today` returns up to 100 work packages.
 - If deleting the input file fails *after* a successful write (e.g. a Windows file lock), the command exits with a
   generic error and the file stays; delete it manually before re-running.
