@@ -1,6 +1,7 @@
 ---
 name: plan-feature
 description: Break a feature into OpenProject User Stories and create them only after the user approves. Use when the user asks to plan or build a feature and wants it tracked in OpenProject, or runs /plan-feature.
+disable-model-invocation: true
 ---
 
 # Plan a feature into OpenProject
@@ -13,7 +14,7 @@ description: Break a feature into OpenProject User Stories and create them only 
 3. Write the stories as a JSON array of `{ "subject": "...", "description": "...", "points": N }` to `{{DATA_DIR}}/tasks.json` and run the dry run (it creates nothing):
 
    ```bash
-   node "{{DFLY}}" op:create --file "{{DATA_DIR}}/tasks.json"
+   node "{{OPFLOW}}" op:create --file "{{DATA_DIR}}/tasks.json"
    ```
 
    The dry run finds the current sprint (the open `Sprint <N>` version), counts your open work already in it, and fills the sprint up to 60 points in priority order; stories that don't fit go to the backlog version. If writing the file fails or the dry run prints `Error:`, stop and tell the user — never run the `--yes` command.
@@ -23,7 +24,7 @@ description: Break a feature into OpenProject User Stories and create them only 
    Only after **Approve**, run:
 
    ```bash
-   node "{{DFLY}}" op:create --file "{{DATA_DIR}}/tasks.json" --yes
+   node "{{OPFLOW}}" op:create --file "{{DATA_DIR}}/tasks.json" --yes
    ```
 5. Show the created `#id subject -> version` lines. If the command reports `FAILED`, tell the user which were created and which were not, and offer to retry only the missing ones (rewrite `tasks.json` with just those and ask for approval again).
 

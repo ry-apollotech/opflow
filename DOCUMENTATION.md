@@ -1,6 +1,6 @@
-# dfly — Documentation
+# opflow — Documentation
 
-`dfly` connects Claude Code to **OpenProject** (task tracking) and **Nextcloud Talk** (daily reporting).
+`opflow` connects Claude Code to **OpenProject** (task tracking) and **Nextcloud Talk** (daily reporting).
 You ask Claude to build a feature; Claude breaks it into User Stories, creates them in OpenProject, closes
 them as the work finishes, and posts an end-of-day report to your Talk room — **and every one of those writes
 waits for your approval first.**
@@ -16,7 +16,7 @@ waits for your approval first.**
  Claude drafts 3–10 User Stories ──► you: Approve / Edit / Cancel
         │ Approve
         ▼
- dfly op:create --yes ──► OpenProject: User Stories, assigned to you
+ opflow op:create --yes ──► OpenProject: User Stories, assigned to you
         │
    ... Claude builds the feature ...
         │
@@ -25,21 +25,21 @@ waits for your approval first.**
  Claude proposes finished stories ──► you: Approve / Edit / Cancel
         │ Approve
         ▼
- dfly op:done --yes ──► OpenProject: status = Closed
+ opflow op:done --yes ──► OpenProject: status = Closed
         │
  You: "/report-day"
         ▼
  Claude drafts the daily report ──► you: Approve / Edit / Cancel
         │ Approve
         ▼
- dfly talk:post --yes ──► Nextcloud Talk room
+ opflow talk:post --yes ──► Nextcloud Talk room
 ```
 
 Two parts:
 
 | Part | What it is | Where |
 |---|---|---|
-| **`dfly` CLI** | Zero-dependency Node.js script that talks to the OpenProject API v3 and the Nextcloud Talk (OCS) API. | `bin/dfly.js`, `src/` |
+| **`opflow` CLI** | Zero-dependency Node.js script that talks to the OpenProject API v3 and the Nextcloud Talk (OCS) API. | `bin/opflow.js`, `src/` |
 | **Claude Code skills** | `/plan-feature`, `/done-tasks`, `/report-day` — instructions that tell Claude how to draft, ask for approval, and call the CLI. | templates in `skills/`, installed to `~/.claude/skills/` |
 
 The skills are installed **user-wide**, so they work in any project you open in Claude Code.
@@ -77,7 +77,7 @@ cp .env.example .env
 | `NC_TALK_ROOM` | Room token | Open the Talk room; the token is the part after `/call/` in the URL |
 
 Environment variables with the same names override `.env` values (empty ones are ignored).
-`.env` is always read from the repo folder, no matter which directory you run `dfly` from.
+`.env` is always read from the repo folder, no matter which directory you run `opflow` from.
 
 ### 3.2 Enable the User Story type
 
@@ -86,7 +86,7 @@ OpenProject → your project → **Project settings** → **Work package types**
 ### 3.3 Verify access (read-only)
 
 ```bash
-node bin/dfly.js check
+node bin/opflow.js check
 ```
 
 Expected:
@@ -110,7 +110,7 @@ npm run install-skills
 ```
 
 This writes `/plan-feature`, `/done-tasks` and `/report-day` into `~/.claude/skills/`, with the absolute path to
-this repo's `bin/dfly.js` filled in, and creates the git-ignored `.dfly/` working folder.
+this repo's `bin/opflow.js` filled in, and creates the git-ignored `.opflow/` working folder.
 
 > Because the installed skills point at this folder's absolute path, **don't move or delete this folder**
 > without re-running `npm run install-skills` from the new location.
@@ -123,15 +123,36 @@ Add both rules to `permissions.ask` in `~/.claude/settings.json`:
 {
   "permissions": {
     "ask": [
-      "Bash(node *dfly.js*--yes*)",
-      "PowerShell(node *dfly.js*--yes*)"
+      "Bash(node *opflow.js*--yes*)",
+      "PowerShell(node *opflow.js*--yes*)"
     ]
   }
 }
 ```
 
-With these, Claude Code asks you again before **any** `dfly` write command runs — whichever shell tool it uses.
+With these, Claude Code asks you again before **any** `opflow` write command runs — whichever shell tool it uses.
 The installer only prints these rules; it never edits your settings.
+
+### 3.6 Session reminder (optional)
+
+The skills only run when you type them (`disable-model-invocation: true`), so Claude never starts them on its own
+during other work. To get a one-line reminder of them at the start of each new session, add this `SessionStart`
+hook to `~/.claude/settings.json`. `npm run install-skills` prints it with your absolute path filled in:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [{ "type": "command", "command": "node \"<this folder>/scripts/session-reminder.js\"" }]
+      }
+    ]
+  }
+}
+```
+
+The hook only gives Claude the reminder text. It runs nothing against OpenProject or Talk.
 
 ---
 
@@ -192,7 +213,7 @@ Run these in Claude Code, in whatever project you're working on.
 
 ## 5. CLI reference
 
-All commands: `node bin/dfly.js <command>`. Exit code is `0` on success, `1` on any error.
+All commands: `node bin/opflow.js <command>`. Exit code is `0` on success, `1` on any error.
 **Write commands are dry runs unless you add `--yes`.**
 
 | Command | Writes? | What it does |
@@ -220,7 +241,7 @@ All commands: `node bin/dfly.js <command>`. Exit code is `0` on success, `1` on 
 ### Example output
 
 ```text
-$ node bin/dfly.js op:create --file tasks.json
+$ node bin/opflow.js op:create --file tasks.json
 DRY RUN: 2 User Story(s) would be created and assigned to Ryan. Re-run with --yes to create.
 Sprint 152: 54 existing + 2 new = 56/60 points
   Add CSV export button (2 pts)
@@ -228,15 +249,15 @@ Backlog: Android POS: 1 task(s)
   Stream large exports (4 pts)
 [ { "subject": "Add CSV export button", ... } ]
 
-$ node bin/dfly.js op:create --file tasks.json --yes
+$ node bin/opflow.js op:create --file tasks.json --yes
 #101 Add CSV export button -> Sprint 152
 #102 Stream large exports -> Backlog: Android POS
 Removed tasks.json.
 
-$ node bin/dfly.js op:done 101 --yes
+$ node bin/opflow.js op:done 101 --yes
 #101 Add CSV export button -> Closed
 
-$ node bin/dfly.js op:today
+$ node bin/opflow.js op:today
 Closed:
   #101 Add CSV export button
 
@@ -254,7 +275,7 @@ In progress:
 - **`op:done` keeps going.** If one id fails, the rest are still processed; the exit code is `1`.
 - **Edit conflicts are retried once.** If a work package changed between reading and closing it (HTTP 409),
   `op:done` re-reads it and tries once more.
-- **"Today"** uses OpenProject's `today` filter; if your instance rejects it, `dfly` falls back to an explicit
+- **"Today"** uses OpenProject's `today` filter; if your instance rejects it, `opflow` falls back to an explicit
   date range for your local date.
 - **Talk message limit** is 32,000 characters; empty messages are rejected.
 
@@ -268,7 +289,7 @@ Nothing reaches OpenProject or Nextcloud without your explicit OK:
    If writing the input file fails, they stop instead of running the command.
 2. **The CLI** refuses to write without `--yes` — the default is always a dry run.
 3. **Claude Code permissions** — the `ask` rules from [3.5](#35-add-the-permission-rules-manual) make Claude Code
-   prompt you before any `dfly … --yes` command runs, even if a skill misbehaves.
+   prompt you before any `opflow … --yes` command runs, even if a skill misbehaves.
 
 Secrets are never printed: error messages show only the HTTP method, URL path and status, and `check` prints
 names and ids only.
@@ -278,7 +299,7 @@ names and ids only.
 ## 7. Files and folders
 
 ```
-bin/dfly.js           CLI entry point (loads .env, wires the API clients)
+bin/opflow.js           CLI entry point (loads .env, wires the API clients)
 src/cli.js            command parsing and the five commands
 src/config.js         .env loading and validation
 src/http.js           shared JSON HTTP helper + readable error messages
@@ -290,7 +311,7 @@ scripts/install.js    renders skills/ into ~/.claude/skills
 skills/               skill templates (plan-feature, done-tasks, report-day)
 tests/                node:test unit tests (APIs are mocked — no network)
 .env                  your credentials (git-ignored)
-.dfly/                working files tasks.json / report.md (git-ignored)
+.opflow/                working files tasks.json / report.md (git-ignored)
 docs/superpowers/     design spec and implementation plan
 ```
 

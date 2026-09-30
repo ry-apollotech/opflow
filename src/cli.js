@@ -7,7 +7,7 @@ export const TYPE_NAME = 'User Story';
 export const DONE_STATUS = 'Closed';
 export const SPRINT_POINTS = 60;
 
-export const USAGE = `Usage: dfly <command> [options]
+export const USAGE = `Usage: opflow <command> [options]
 
 Commands:
   check                          Verify OpenProject and Nextcloud Talk access (read-only)

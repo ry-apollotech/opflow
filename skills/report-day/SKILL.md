@@ -1,6 +1,7 @@
 ---
 name: report-day
 description: Draft an end-of-day report from today's OpenProject activity and post it to Nextcloud Talk only after the user approves. Use when the user wants to report their day, send a daily update, or runs /report-day.
+disable-model-invocation: true
 ---
 
 # End-of-day report to Nextcloud Talk
@@ -8,7 +9,7 @@ description: Draft an end-of-day report from today's OpenProject activity and po
 1. Run:
 
    ```bash
-   node "{{DFLY}}" op:today --json
+   node "{{OPFLOW}}" op:today --json
    ```
 2. Draft the report in this format (Talk renders Markdown):
 
@@ -34,7 +35,7 @@ description: Draft an end-of-day report from today's OpenProject activity and po
 4. Only after **Approve**, write the text to `{{DATA_DIR}}/report.md`. If writing the file fails for any reason, stop and tell the user — never run the `--yes` command. Otherwise run:
 
    ```bash
-   node "{{DFLY}}" talk:post --file "{{DATA_DIR}}/report.md" --yes
+   node "{{OPFLOW}}" talk:post --file "{{DATA_DIR}}/report.md" --yes
    ```
 5. Confirm the posted message id, or show the error verbatim.
 

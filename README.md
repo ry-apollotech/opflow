@@ -1,4 +1,4 @@
-# dfly — OpenProject + Nextcloud Talk workflow for Claude Code
+# opflow — OpenProject + Nextcloud Talk workflow for Claude Code
 
 Plan a feature → approve → User Stories in OpenProject (sprint or backlog, by points) → approve → closed → approve →
 daily report in Nextcloud Talk. Nothing is written without your approval.
@@ -19,7 +19,7 @@ Full reference: [DOCUMENTATION.md](DOCUMENTATION.md).
 | 4 | Your team's backlog version | `OP_BACKLOG` | OpenProject → project → **Backlogs**. Use the exact name, e.g. `Backlog: Android POS` or `Backlog: ERP`. |
 | 5 | Nextcloud URL | `NC_URL` | The browser address bar, e.g. `https://cloud.example.com` |
 | 6 | Nextcloud username | `NC_USER` | Nextcloud → avatar → **Settings** → **Personal info** (the login name, not the display name) |
-| 7 | Nextcloud app password | `NC_APP_PASSWORD` | Nextcloud → **Settings** → **Security** → **Devices & sessions** → name it `dfly` → **Create new app password**. Not your login password. |
+| 7 | Nextcloud app password | `NC_APP_PASSWORD` | Nextcloud → **Settings** → **Security** → **Devices & sessions** → name it `opflow` → **Create new app password**. Not your login password. |
 | 8 | Talk room token | `NC_TALK_ROOM` | Open the room in Talk; the token is the part after `/call/` in the URL. Your own "Note to self" room is good for a first test. |
 
 Your accounts also need:
@@ -45,7 +45,7 @@ Software: **Node.js 18+** and **Claude Code**. There are no npm dependencies to 
 3. Check your access. This is read-only:
 
    ```bash
-   node bin/dfly.js check
+   node bin/opflow.js check
    ```
 
    Every line should start with `OK`:
@@ -72,14 +72,33 @@ Software: **Node.js 18+** and **Claude Code**. There are no npm dependencies to 
    ```json
    {
      "permissions": {
-       "ask": ["Bash(node *dfly.js*--yes*)", "PowerShell(node *dfly.js*--yes*)"]
+       "ask": ["Bash(node *opflow.js*--yes*)", "PowerShell(node *opflow.js*--yes*)"]
      }
    }
    ```
 
-6. Restart Claude Code.
+6. Optional: get a one-line reminder of the commands at the start of each new session. Add this to
+   `~/.claude/settings.json`, using the exact path that `npm run install-skills` prints:
+
+   ```json
+   {
+     "hooks": {
+       "SessionStart": [
+         {
+           "matcher": "startup",
+           "hooks": [{ "type": "command", "command": "node \"<this folder>/scripts/session-reminder.js\"" }]
+         }
+       ]
+     }
+   }
+   ```
+
+7. Restart Claude Code.
 
 ## Daily use (in any project, in Claude Code)
+
+The skills only run when you type them. Claude never starts them on its own while you're working on something else.
+
 
 - `/plan-feature add CSV export to the invoices page`: Claude breaks the feature into User Stories with points and
   shows where each one goes. Approve, and they're created and assigned to you.
@@ -126,11 +145,11 @@ All calls use **your** credentials: OpenProject with Basic auth `apikey:<OP_API_
 ## CLI
 
 ```
-node bin/dfly.js check
-node bin/dfly.js op:create --file tasks.json [--yes]
-node bin/dfly.js op:done <id...> [--yes]
-node bin/dfly.js op:today [--json]
-node bin/dfly.js talk:post --file report.md [--yes]
+node bin/opflow.js check
+node bin/opflow.js op:create --file tasks.json [--yes]
+node bin/opflow.js op:done <id...> [--yes]
+node bin/opflow.js op:today [--json]
+node bin/opflow.js talk:post --file report.md [--yes]
 ```
 
 Write commands are dry runs unless `--yes` is given.

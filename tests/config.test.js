@@ -34,7 +34,7 @@ test('buildConfig trims trailing slashes and groups by service', () => {
 });
 
 test('loadConfig reads the file and lets env override it', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'dfly-'));
+  const dir = mkdtempSync(join(tmpdir(), 'opflow-'));
   const file = join(dir, '.env');
   writeFileSync(file, Object.entries(full).map(([k, v]) => `${k}=${v}`).join('\n'));
   const config = loadConfig(file, { OP_PROJECT: 'other' });
@@ -47,7 +47,7 @@ test('loadConfig works without a file when env has everything', () => {
 });
 
 test('loadConfig ignores empty-string env values and keeps the .env file value', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'dfly-'));
+  const dir = mkdtempSync(join(tmpdir(), 'opflow-'));
   const file = join(dir, '.env');
   writeFileSync(file, Object.entries(full).map(([k, v]) => `${k}=${v}`).join('\n'));
   const config = loadConfig(file, { OP_PROJECT: '', NC_USER: 'other' });

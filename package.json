@@ -1,9 +1,9 @@
 {
-  "name": "dfly",
+  "name": "opflow",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "bin": { "dfly": "bin/dfly.js" },
+  "bin": { "opflow": "bin/opflow.js" },
   "engines": { "node": ">=18" },
   "scripts": {
     "test": "node --test",
