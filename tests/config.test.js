@@ -28,7 +28,7 @@ test('buildConfig lists every missing key', () => {
 
 test('buildConfig trims trailing slashes and groups by service', () => {
   assert.deepEqual(buildConfig(full), {
-    op: { url: 'https://op.example.com', apiKey: 'k', project: 'demo' },
+    op: { url: 'https://op.example.com', apiKey: 'k', project: 'demo', backlog: null },
     nc: { url: 'https://nc.example.com', user: 'ryan', appPassword: 'p', room: 'abc123' },
   });
 });
@@ -53,4 +53,8 @@ test('loadConfig ignores empty-string env values and keeps the .env file value',
   const config = loadConfig(file, { OP_PROJECT: '', NC_USER: 'other' });
   assert.equal(config.op.project, 'demo');
   assert.equal(config.nc.user, 'other');
+});
+
+test('buildConfig reads the optional OP_BACKLOG version name', () => {
+  assert.equal(buildConfig({ ...full, OP_BACKLOG: 'Backlog: Android POS' }).op.backlog, 'Backlog: Android POS');
 });

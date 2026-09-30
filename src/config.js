@@ -32,7 +32,7 @@ export function buildConfig(env) {
   const missing = REQUIRED_KEYS.filter((key) => !env[key]);
   if (missing.length) throw new Error(`Missing config keys: ${missing.join(', ')}`);
   return {
-    op: { url: trimSlash(env.OP_URL), apiKey: env.OP_API_KEY, project: env.OP_PROJECT },
+    op: { url: trimSlash(env.OP_URL), apiKey: env.OP_API_KEY, project: env.OP_PROJECT, backlog: env.OP_BACKLOG || null },
     nc: {
       url: trimSlash(env.NC_URL),
       user: env.NC_USER,

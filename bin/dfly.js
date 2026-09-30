@@ -21,6 +21,7 @@ if (!argv.length || argv[0] === 'help' || argv[0] === '--help') {
       removeFile: (path) => unlink(path),
       log: (line) => console.log(line),
       today: localDate(),
+      backlog: config.op.backlog,
     });
   } catch (err) {
     console.error(`Error: ${err.message}`);

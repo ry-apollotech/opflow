@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { run, parseArgs, USAGE } from '../src/cli.js';
 
-function setup({ files = {}, op: opOverrides = {}, talk: talkOverrides = {} } = {}) {
+function setup({ files = {}, op: opOverrides = {}, talk: talkOverrides = {}, backlog = 'Backlog: Android POS' } = {}) {
   const calls = [];
   const lines = [];
   const removedFiles = [];
@@ -11,6 +11,11 @@ function setup({ files = {}, op: opOverrides = {}, talk: talkOverrides = {} } = 
     project: async () => ({ id: 1, name: 'Demo' }),
     resolveType: async () => ({ id: 7, name: 'User Story' }),
     resolveStatus: async () => ({ id: 12, name: 'Closed' }),
+    listVersions: async () => [
+      { id: 2167, name: 'Backlog: Android POS', status: 'open' },
+      { id: 2165, name: 'Sprint 152', status: 'open' },
+    ],
+    listMyOpenInVersion: async () => [],
     createWorkPackage: async (task, ids) => {
       calls.push(['create', task.subject, ids]);
       return { id: 100 + calls.length, subject: task.subject };
@@ -44,11 +49,14 @@ function setup({ files = {}, op: opOverrides = {}, talk: talkOverrides = {} } = 
     log: (line) => lines.push(line),
     removeFile: async (path) => { removedFiles.push(path); },
     today: '2026-09-22',
+    backlog,
   };
   return { deps, calls, lines, removedFiles, output: () => lines.join('\n') };
 }
 
-const tasksFile = { 't.json': JSON.stringify([{ subject: 'A', description: 'a' }, { subject: 'B' }]) };
+const tasksFile = { 't.json': JSON.stringify([{ subject: 'A', description: 'a', points: 4 }, { subject: 'B', points: 2 }]) };
+const sprintIds = { typeId: 7, assigneeId: 3, versionId: 2165 };
+const backlogIds = { typeId: 7, assigneeId: 3, versionId: 2167 };
 
 test('parseArgs reads command, flags, file and ids', () => {
   assert.deepEqual(parseArgs(['op:done', '5', '6', '--yes']), { command: 'op:done', yes: true, json: false, file: null, ids: ['5', '6'] });
@@ -67,6 +75,9 @@ test('op:create without --yes prints payloads and creates nothing', async () => 
   assert.equal(await run(['op:create', '--file', 't.json'], s.deps), 0);
   assert.equal(s.calls.length, 0);
   assert.match(s.output(), /DRY RUN: 2 User Story/);
+  assert.match(s.output(), /Sprint 152: 0 existing \+ 6 new = 6\/60 points\n  A \(4 pts\)\n  B \(2 pts\)/);
+  assert.match(s.output(), /Backlog: Android POS: none/);
+  assert.match(s.output(), /"href": "\/api\/v3\/versions\/2165"/);
   assert.match(s.output(), /"href": "\/api\/v3\/types\/7"/);
   assert.match(s.output(), /"href": "\/api\/v3\/users\/3"/);
 });
@@ -75,10 +86,10 @@ test('op:create --yes creates each task assigned to me', async () => {
   const s = setup({ files: tasksFile });
   assert.equal(await run(['op:create', '--file', 't.json', '--yes'], s.deps), 0);
   assert.deepEqual(s.calls, [
-    ['create', 'A', { typeId: 7, assigneeId: 3 }],
-    ['create', 'B', { typeId: 7, assigneeId: 3 }],
+    ['create', 'A', sprintIds],
+    ['create', 'B', sprintIds],
   ]);
-  assert.equal(s.output(), '#101 A\n#102 B\nRemoved t.json.');
+  assert.equal(s.output(), '#101 A -> Sprint 152\n#102 B -> Sprint 152\nRemoved t.json.');
 });
 
 test('op:create --yes removes the input file after a fully successful write', async () => {
@@ -96,7 +107,7 @@ test('op:create without --yes does not remove the input file', async () => {
 test('op:create stops on failure and reports what was and was not created', async () => {
   let n = 0;
   const s = setup({
-    files: { 't.json': JSON.stringify([{ subject: 'A' }, { subject: 'B' }, { subject: 'C' }]) },
+    files: { 't.json': JSON.stringify([{ subject: 'A', points: 1 }, { subject: 'B', points: 1 }, { subject: 'C', points: 1 }]) },
     op: {
       createWorkPackage: async (task) => {
         n++;
@@ -106,14 +117,14 @@ test('op:create stops on failure and reports what was and was not created', asyn
     },
   });
   assert.equal(await run(['op:create', '--file', 't.json', '--yes'], s.deps), 1);
-  assert.equal(s.output(), '#201 A\nFAILED on "B": boom\nCreated before failure: #201\nNot created: B | C');
+  assert.equal(s.output(), '#201 A -> Sprint 152\nFAILED on "B": boom\nCreated before failure: #201\nNot created: B | C');
   assert.deepEqual(s.removedFiles, []);
 });
 
 test('op:create strips a UTF-8 BOM before parsing JSON', async () => {
-  const s = setup({ files: { 't.json': '﻿' + JSON.stringify([{ subject: 'A' }]) } });
+  const s = setup({ files: { 't.json': '﻿' + JSON.stringify([{ subject: 'A', points: 1 }]) } });
   assert.equal(await run(['op:create', '--file', 't.json', '--yes'], s.deps), 0);
-  assert.deepEqual(s.calls, [['create', 'A', { typeId: 7, assigneeId: 3 }]]);
+  assert.deepEqual(s.calls, [['create', 'A', sprintIds]]);
 });
 
 test('op:create requires --file and valid tasks', async () => {
@@ -121,6 +132,43 @@ test('op:create requires --file and valid tasks', async () => {
   assert.equal(await run(['op:create'], s.deps), 1);
   assert.equal(await run(['op:create', '--file', 'bad.json'], s.deps), 1);
   assert.equal(s.output(), 'Error: --file <path> is required\nError: tasks file must be a non-empty JSON array');
+});
+
+test('op:create counts my open sprint work toward 60 points and sends overflow to the backlog', async () => {
+  const tasks = [{ subject: 'A', points: 4 }, { subject: 'B', points: 4 }, { subject: 'C', points: 2 }];
+  // 108h = 54 points already in the sprint (a task with no estimate counts as 0), so 6 remain
+  const listMyOpenInVersion = async () => [
+    { estimatedTime: 'PT98H' },
+    { estimatedTime: 'PT8H' },
+    { estimatedTime: null },
+    // 3 × 40 min is exactly 2h, but float addition makes it 2.0000000000000004h; must not ceil to 55 points
+    ...Array(3).fill({ estimatedTime: 'PT40M' }),
+  ];
+  const s = setup({ files: { 't.json': JSON.stringify(tasks) }, op: { listMyOpenInVersion } });
+  assert.equal(await run(['op:create', '--file', 't.json'], s.deps), 0);
+  assert.match(s.output(), /Sprint 152: 54 existing \+ 6 new = 60\/60 points\n  A \(4 pts\)\n  C \(2 pts\)/);
+  assert.match(s.output(), /Backlog: Android POS: 1 task\(s\)\n  B \(4 pts\)/);
+
+  const y = setup({ files: { 't.json': JSON.stringify(tasks) }, op: { listMyOpenInVersion } });
+  assert.equal(await run(['op:create', '--file', 't.json', '--yes'], y.deps), 0);
+  assert.deepEqual(y.calls, [['create', 'A', sprintIds], ['create', 'B', backlogIds], ['create', 'C', sprintIds]]);
+  assert.equal(y.output(), '#101 A -> Sprint 152\n#102 B -> Backlog: Android POS\n#103 C -> Sprint 152\nRemoved t.json.');
+});
+
+test('op:create requires OP_BACKLOG and fails if that version does not exist', async () => {
+  const missing = setup({ files: tasksFile, backlog: null });
+  assert.equal(await run(['op:create', '--file', 't.json'], missing.deps), 1);
+  assert.equal(missing.output(), 'Error: OP_BACKLOG is not set in .env (e.g. OP_BACKLOG="Backlog: Android POS")');
+
+  const wrong = setup({ files: tasksFile, backlog: 'Backlog: Nope' });
+  assert.equal(await run(['op:create', '--file', 't.json'], wrong.deps), 1);
+  assert.match(wrong.output(), /^Error: Version "Backlog: Nope" not found/);
+});
+
+test('check fails the backlog line when OP_BACKLOG is missing', async () => {
+  const s = setup({ backlog: null });
+  assert.equal(await run(['check'], s.deps), 1);
+  assert.match(s.output(), /FAIL  Backlog version: OP_BACKLOG is not set in \.env/);
 });
 
 test('op:done without --yes only shows the work packages', async () => {
@@ -207,6 +255,8 @@ test('check reports each item and returns 1 if any fail', async () => {
       'OK    OpenProject project: Demo',
       'OK    Type "User Story": id 7',
       'OK    Status "Closed": id 12',
+      'OK    Current sprint: Sprint 152 (id 2165)',
+      'OK    Backlog version: Backlog: Android POS (id 2167)',
       'FAIL  Talk room: GET /x -> 401: Unauthorized',
     ].join('\n'),
   );

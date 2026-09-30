@@ -1,10 +1,19 @@
 import { basicAuth, requestJson } from './http.js';
-import { closeBody, todayFilters, todayRangeFilters, workPackageCreateBody } from './payloads.js';
+import { closeBody, myOpenInVersionFilters, todayFilters, todayRangeFilters, workPackageCreateBody } from './payloads.js';
 
 export function findByName(elements, name, kind) {
   const hit = elements.find((el) => el.name.toLowerCase() === name.toLowerCase());
   if (!hit) throw new Error(`${kind} "${name}" not found. Available: ${elements.map((el) => el.name).join(', ')}`);
   return hit;
+}
+
+export function currentSprint(versions) {
+  const sprints = versions
+    .filter((v) => v.status === 'open')
+    .map((v) => ({ v, n: /^Sprint (\d+)$/.exec(v.name)?.[1] }))
+    .filter(({ n }) => n !== undefined);
+  if (!sprints.length) throw new Error('No open version named "Sprint <N>" in the project');
+  return sprints.reduce((a, b) => (Number(b.n) > Number(a.n) ? b : a)).v;
 }
 
 export function createOpenProjectClient({ url, apiKey, project }, fetchFn = fetch) {
@@ -29,6 +38,20 @@ export function createOpenProjectClient({ url, apiKey, project }, fetchFn = fetc
     async resolveStatus(name) {
       const res = await call('GET', '/api/v3/statuses');
       return findByName(res._embedded.elements, name, 'Status');
+    },
+
+    async listVersions() {
+      const res = await call('GET', `${projectPath}/versions?pageSize=500`);
+      return res._embedded.elements;
+    },
+
+    async listMyOpenInVersion(versionId) {
+      const res = await call('GET', `${projectPath}/work_packages?filters=${encodeURIComponent(myOpenInVersionFilters(versionId))}&pageSize=100`);
+      const items = res._embedded.elements;
+      if (res.total > items.length) {
+        throw new Error(`Version ${versionId} has ${res.total} of your open work packages; only ${items.length} were read`);
+      }
+      return items;
     },
 
     createWorkPackage: (task, ids) => call('POST', `${projectPath}/work_packages`, workPackageCreateBody(task, ids)),

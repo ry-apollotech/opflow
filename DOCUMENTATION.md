@@ -70,6 +70,7 @@ cp .env.example .env
 | `OP_URL` | Your OpenProject base URL, e.g. `https://openproject.example.com` | Browser address bar |
 | `OP_API_KEY` | Personal API token | OpenProject → avatar → **My account** → **Access tokens** → API → generate |
 | `OP_PROJECT` | Project identifier (or numeric id) | The project URL: `/projects/<identifier>` |
+| `OP_BACKLOG` | Name of your team's backlog version, e.g. `Backlog: Android POS` (needed by `op:create`) | OpenProject → project → **Backlogs** |
 | `NC_URL` | Your Nextcloud base URL, e.g. `https://cloud.example.com` | Browser address bar |
 | `NC_USER` | Your Nextcloud username | Nextcloud profile |
 | `NC_APP_PASSWORD` | An app password (not your login password) | Nextcloud → **Settings** → **Security** → **Devices & sessions** → create app password |
@@ -95,6 +96,8 @@ OK    OpenProject user: <your name>
 OK    OpenProject project: <project name>
 OK    Type "User Story": id 7
 OK    Status "Closed": id 12
+OK    Current sprint: Sprint 152 (id 2165)
+OK    Backlog version: Backlog: Android POS (id 2167)
 OK    Talk room: <room name>
 ```
 
@@ -142,11 +145,17 @@ Run these in Claude Code, in whatever project you're working on.
 /plan-feature add CSV export to the invoices page
 ```
 
-1. Claude breaks the feature into 3–10 User Stories — each with a short imperative subject (≤ 80 chars) and a
-   description containing context plus an **Acceptance criteria** checklist.
-2. You see them as a numbered table and choose **Approve**, **Edit** or **Cancel**.
-3. On **Approve**, Claude writes them to `.dfly/tasks.json` and runs `op:create --yes`. Each story is created as a
-   **User Story**, **assigned to you**, and you get back the `#id subject` of each one.
+1. Claude breaks the feature into 3–10 User Stories in priority order — each with a short imperative subject
+   (≤ 80 chars), a description containing context plus an **Acceptance criteria** checklist, and **points**:
+   `1` = 2h, `2` = 4h, `4` = 1 day (bigger stories are split).
+2. Claude runs a dry run that places each story: the current sprint (the open `Sprint <N>` version with the highest
+   N) holds up to **60 points** of your work, counting your open tasks already in it; stories that don't fit go to
+   the `OP_BACKLOG` version.
+3. You see them as a numbered table with **Points** and **Goes to**, plus the sprint total, and choose
+   **Approve**, **Edit** or **Cancel**.
+4. On **Approve**, Claude runs `op:create --yes`. Each story is created as a **User Story**, **assigned to you**,
+   in its sprint or backlog version, with **Estimated time** = points × 2h, and you get back
+   `#id subject -> version` for each one.
 
 ### `/done-tasks`
 
@@ -188,8 +197,8 @@ All commands: `node bin/dfly.js <command>`. Exit code is `0` on success, `1` on 
 
 | Command | Writes? | What it does |
 |---|---|---|
-| `check` | no | Verifies OpenProject user, project, `User Story` type, `Closed` status and the Talk room. |
-| `op:create --file <tasks.json> [--yes]` | with `--yes` | Creates User Stories assigned to you. Dry run prints the exact API payloads. |
+| `check` | no | Verifies OpenProject user, project, `User Story` type, `Closed` status, current sprint, `OP_BACKLOG` version and the Talk room. |
+| `op:create --file <tasks.json> [--yes]` | with `--yes` | Creates User Stories assigned to you in the current sprint (up to 60 points) or the backlog. Dry run prints the split and the exact API payloads. |
 | `op:done <id...> [--yes]` | with `--yes` | Sets work packages to **Closed**. Dry run shows each one's current status. |
 | `op:today [--json]` | no | Lists your work packages updated today, grouped by status (or as JSON). |
 | `talk:post --file <report.md> [--yes]` | with `--yes` | Posts the file's text to the Talk room. Dry run prints the message. |
@@ -199,24 +208,29 @@ All commands: `node bin/dfly.js <command>`. Exit code is `0` on success, `1` on 
 
 ```json
 [
-  { "subject": "Add CSV export button", "description": "Context...\n\n**Acceptance criteria**\n- [ ] ..." },
-  { "subject": "Stream large exports" }
+  { "subject": "Add CSV export button", "description": "Context...\n\n**Acceptance criteria**\n- [ ] ...", "points": 2 },
+  { "subject": "Stream large exports", "points": 4 }
 ]
 ```
 
 - `subject` — required, non-empty, max 255 characters.
 - `description` — optional Markdown string.
+- `points` — required: `1` (2h), `2` (4h) or `4` (1 day). Order matters: earlier stories get sprint room first.
 
 ### Example output
 
 ```text
 $ node bin/dfly.js op:create --file tasks.json
 DRY RUN: 2 User Story(s) would be created and assigned to Ryan. Re-run with --yes to create.
+Sprint 152: 54 existing + 2 new = 56/60 points
+  Add CSV export button (2 pts)
+Backlog: Android POS: 1 task(s)
+  Stream large exports (4 pts)
 [ { "subject": "Add CSV export button", ... } ]
 
 $ node bin/dfly.js op:create --file tasks.json --yes
-#101 Add CSV export button
-#102 Stream large exports
+#101 Add CSV export button -> Sprint 152
+#102 Stream large exports -> Backlog: Android POS
 Removed tasks.json.
 
 $ node bin/dfly.js op:done 101 --yes
@@ -287,7 +301,9 @@ docs/superpowers/     design spec and implementation plan
 | Who am I | `GET /api/v3/users/me` |
 | Resolve type | `GET /api/v3/projects/{project}/types` → match "User Story" |
 | Resolve status | `GET /api/v3/statuses` → match "Closed" |
-| Create story | `POST /api/v3/projects/{project}/work_packages` |
+| Sprint and backlog | `GET /api/v3/projects/{project}/versions` → open `Sprint <N>` with highest N, and `OP_BACKLOG` |
+| Existing sprint load | `GET /api/v3/projects/{project}/work_packages?filters=…` (assignee = me, open, version = sprint) |
+| Create story | `POST /api/v3/projects/{project}/work_packages` (with `estimatedTime` and `version`) |
 | Close story | `GET` then `PATCH /api/v3/work_packages/{id}` with `lockVersion` |
 | Today's work | `GET /api/v3/projects/{project}/work_packages?filters=…` (assignee = me, updated today) |
 | Talk room info | `GET /ocs/v2.php/apps/spreed/api/v4/room/{token}` |
@@ -307,6 +323,8 @@ your username and app password, plus the `OCS-APIRequest: true` header.
 | `FAIL OpenProject project: … 404` | `OP_PROJECT` is wrong, or you're not a member of that project. |
 | `Type "User Story" not found. Available: …` | Enable User Story in the project's settings (see 3.2), or check the spelling of the type name on your instance. |
 | `Status "Closed" not found. Available: …` | Your instance names the done status differently; the list shows what exists. |
+| `FAIL Current sprint: No open version named "Sprint <N>"…` | No sprint version is open in the project yet. |
+| `FAIL Backlog version: …` | `OP_BACKLOG` is unset or doesn't match a version name; the error lists the available ones. |
 | `FAIL Talk room: … 401` / raw XML in the error | Wrong `NC_USER` / `NC_APP_PASSWORD`. Use an app password, not your login password. |
 | `FAIL Talk room: … 404` | Wrong `NC_TALK_ROOM` token, or you're not in that room. |
 | `422 …` on create | You can't be assigned in that project, or a required custom field is missing. |
