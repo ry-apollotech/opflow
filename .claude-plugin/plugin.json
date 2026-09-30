@@ -1,0 +1,6 @@
+{
+  "name": "opflow",
+  "version": "0.2.0",
+  "description": "Tickets + daily reports: plan work into OpenProject sprints by points and post end-of-day reports to Nextcloud Talk, always after your approval.",
+  "author": { "name": "ry-apollotech" }
+}

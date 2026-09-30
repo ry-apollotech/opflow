@@ -1,12 +1,11 @@
 {
   "name": "opflow",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "bin": { "opflow": "bin/opflow.js" },
   "engines": { "node": ">=18" },
   "scripts": {
-    "test": "node --test",
-    "install-skills": "node scripts/install.js"
+    "test": "node --test"
   }
 }

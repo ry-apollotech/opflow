@@ -1,0 +1,14 @@
+{
+  "name": "opflow",
+  "description": "opflow: tickets + daily reports for OpenProject and Nextcloud Talk, as a Claude Code plugin.",
+  "owner": {
+    "name": "ry-apollotech"
+  },
+  "plugins": [
+    {
+      "name": "opflow",
+      "source": "./",
+      "description": "Tickets + daily reports for OpenProject and Nextcloud Talk."
+    }
+  ]
+}

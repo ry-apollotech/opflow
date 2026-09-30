@@ -1,34 +1,36 @@
 ---
 name: plan-feature
-description: Break a feature into OpenProject User Stories and create them only after the user approves. Use when the user asks to plan or build a feature and wants it tracked in OpenProject, or runs /plan-feature.
+description: Break a feature into OpenProject User Stories and create them only after the user approves. Use when the user runs /opflow:plan-feature.
 disable-model-invocation: true
 ---
 
 # Plan a feature into OpenProject
 
 1. Understand the feature from the user's request and, if relevant, the current codebase. Ask one clarifying question only if the scope is genuinely unclear.
-2. Break it into User Stories, in priority order (most important first), following these rules:
+2. Get the user's ticket-breakdown rules:
 
-{{PLAN_RULES}}
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/bin/opflow.js" plan:rules
+   ```
 
-   Each story has:
+   Break the feature into User Stories, in priority order (most important first), following those rules exactly. Each story has:
    - `subject`: imperative, at most 80 characters
    - `description`: Markdown — 1–3 sentences of context, then `**Acceptance criteria**` as a `- [ ]` checklist
    - `points`: `1` (≈2h), `2` (≈4h) or `4` (≈1 day). Split any story bigger than a day.
-3. Write the stories as a JSON array of `{ "subject": "...", "description": "...", "points": N }` to `{{DATA_DIR}}/tasks.json` and run the dry run (it creates nothing):
+3. Write the stories as a JSON array of `{ "subject": "...", "description": "...", "points": N }` to `~/.opflow/tasks.json` and run the dry run (it creates nothing):
 
    ```bash
-   node "{{OPFLOW}}" op:create --file "{{DATA_DIR}}/tasks.json"
+   node "${CLAUDE_PLUGIN_ROOT}/bin/opflow.js" op:create --file ~/.opflow/tasks.json
    ```
 
-   The dry run finds the current sprint (the open `Sprint <N>` version), counts your open work already in it, and fills the sprint up to 60 points in priority order; stories that don't fit go to the backlog version. If writing the file fails or the dry run prints `Error:`, stop and tell the user — never run the `--yes` command.
+   The dry run finds the current sprint (the open `Sprint <N>` version), counts your open work already in it, and fills the sprint up to 60 points in priority order; stories that don't fit go to the backlog version. If writing the file fails or the dry run prints `Error:`, stop and tell the user — never run the `--yes` command. If it says opflow is not set up, tell the user to run `/opflow:setup`.
 4. Show them as a numbered table (`# | Subject | Points | Goes to | Acceptance criteria`) followed by the dry run's sprint total line, then ask with AskUserQuestion: **Approve**, **Edit**, **Cancel**.
    - **Edit** → apply the changes, rewrite `tasks.json`, re-run the dry run, show the full table again, ask again.
    - **Cancel** → stop. Nothing is created.
    Only after **Approve**, run:
 
    ```bash
-   node "{{OPFLOW}}" op:create --file "{{DATA_DIR}}/tasks.json" --yes
+   node "${CLAUDE_PLUGIN_ROOT}/bin/opflow.js" op:create --file ~/.opflow/tasks.json --yes
    ```
 5. Show the created `#id subject -> version` lines. If the command reports `FAILED`, tell the user which were created and which were not, and offer to retry only the missing ones (rewrite `tasks.json` with just those and ask for approval again).
 
