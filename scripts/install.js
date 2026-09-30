@@ -1,7 +1,10 @@
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { copyFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
+import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
+import { DEFAULTS, QUESTIONS, askPreferences, loadPreferences, planRules, savePreferences } from './preferences.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 export const SKILLS_DIR = join(ROOT, 'skills');
@@ -17,8 +20,60 @@ export function sessionStartHook(reminderPath) {
   return { matcher: 'startup', hooks: [{ type: 'command', command: `node "${reminderPath}"` }] };
 }
 
-export function renderSkill(text, { opflow, dataDir }) {
-  return text.replaceAll('{{OPFLOW}}', opflow).replaceAll('{{DATA_DIR}}', dataDir);
+export function renderSkill(text, { opflow, dataDir, reportTemplate, planRules }) {
+  return text
+    .replaceAll('{{OPFLOW}}', opflow)
+    .replaceAll('{{DATA_DIR}}', dataDir)
+    .replaceAll('{{REPORT_TEMPLATE}}', reportTemplate)
+    .replaceAll('{{PLAN_RULES}}', planRules);
+}
+
+export function parseInstallArgs(argv) {
+  const opts = { reconfigure: false };
+  for (const arg of argv) {
+    if (arg === '--reconfigure') opts.reconfigure = true;
+    else throw new Error(`Unknown flag: ${arg}`);
+  }
+  return opts;
+}
+
+const describe = (prefs) =>
+  QUESTIONS.map((q) => `${q.question}: ${q.options.find((o) => o.value === prefs[q.key]).label}`).join(' | ');
+
+// Saved answers win unless --reconfigure; with no terminal to ask in, fall back to the defaults.
+async function planningPreferences(file, { reconfigure }) {
+  const saved = await loadPreferences(file);
+  if (saved && !reconfigure) {
+    console.log(`Ticket breakdown (saved): ${describe(saved)}`);
+    console.log('  Change it with: npm run install-skills -- --reconfigure');
+    return saved;
+  }
+  let prefs = DEFAULTS;
+  if (process.stdin.isTTY) {
+    console.log('\nHow should /plan-feature break your work into tickets?');
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      prefs = await askPreferences((prompt) => rl.question(prompt), (line) => console.log(line));
+    } finally {
+      rl.close();
+    }
+  } else {
+    console.log('No terminal to ask in; using the default ticket breakdown.');
+  }
+  await savePreferences(file, prefs);
+  console.log(`\nTicket breakdown: ${describe(prefs)}`);
+  return prefs;
+}
+
+// Creates target from source only if target doesn't exist yet, so a user's edits survive reinstalls.
+export async function copyIfMissing(source, target) {
+  try {
+    await copyFile(source, target, constants.COPYFILE_EXCL);
+    return true;
+  } catch (err) {
+    if (err.code === 'EEXIST') return false;
+    throw err;
+  }
 }
 
 export function isMainModule(argvPath, moduleUrl, plat = platform()) {
@@ -32,18 +87,25 @@ export function skillDirNames(entries) {
   return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
 }
 
-async function main() {
+async function main(opts) {
   const opflow = toPosix(join(ROOT, 'bin', 'opflow.js'));
   const dataDir = toPosix(join(ROOT, '.opflow'));
+  const reportTemplate = toPosix(join(ROOT, 'report-template.md'));
   const target = join(homedir(), '.claude', 'skills');
   await mkdir(dataDir, { recursive: true });
+  if (await copyIfMissing(join(ROOT, 'report-template.example.md'), reportTemplate)) {
+    console.log(`Created ${reportTemplate} (edit it to change your /report-day format)`);
+  } else {
+    console.log(`Keeping your ${reportTemplate}`);
+  }
+  const prefs = await planningPreferences(join(dataDir, 'preferences.json'), opts);
 
   const entries = await readdir(SKILLS_DIR, { withFileTypes: true });
   for (const name of skillDirNames(entries)) {
     const template = await readFile(join(SKILLS_DIR, name, 'SKILL.md'), 'utf8');
     const dir = join(target, name);
     await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, 'SKILL.md'), renderSkill(template, { opflow, dataDir }));
+    await writeFile(join(dir, 'SKILL.md'), renderSkill(template, { opflow, dataDir, reportTemplate, planRules: planRules(prefs) }));
     console.log(`Installed /${name} -> ${join(dir, 'SKILL.md')}`);
   }
 
@@ -59,5 +121,5 @@ async function main() {
 }
 
 if (isMainModule(process.argv[1], import.meta.url)) {
-  await main();
+  await main(parseInstallArgs(process.argv.slice(2)));
 }

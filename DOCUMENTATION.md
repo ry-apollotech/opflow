@@ -110,7 +110,21 @@ npm run install-skills
 ```
 
 This writes `/plan-feature`, `/done-tasks` and `/report-day` into `~/.claude/skills/`, with the absolute path to
-this repo's `bin/opflow.js` filled in, and creates the git-ignored `.opflow/` working folder.
+this repo's `bin/opflow.js` filled in, and creates the git-ignored `.opflow/` working folder. It also creates your
+personal `report-template.md` from `report-template.example.md` if you don't have one yet; it never overwrites it.
+
+The first run also asks three questions about how `/plan-feature` breaks work into tickets:
+
+| Question | Options (first is the default) |
+|---|---|
+| Unit tests / testing work | In acceptance criteria · Excluded · Separate ticket per feature |
+| Ticket size | Balanced (2–4 pts, max 8) · Fewer, bigger (mostly 4 pts, max 5) · Detailed (1–2 pts, technical tasks allowed, max 10) |
+| Docs and deployment work | In acceptance criteria · Excluded · Separate tickets |
+
+Answers are saved in `.opflow/preferences.json` (git-ignored) and written into your installed `/plan-feature`.
+Later runs reuse them. `npm run install-skills -- --reconfigure` asks again. With no terminal to ask in, the
+defaults are used. Every option keeps the same basics: each ticket is one outcome a PM can check, no tickets for
+code review or refactoring on their own, and a final merge/split pass before you see the table.
 
 > Because the installed skills point at this folder's absolute path, **don't move or delete this folder**
 > without re-running `npm run install-skills` from the new location.
@@ -166,7 +180,8 @@ Run these in Claude Code, in whatever project you're working on.
 /plan-feature add CSV export to the invoices page
 ```
 
-1. Claude breaks the feature into 3–10 User Stories in priority order — each with a short imperative subject
+1. Claude breaks the feature into User Stories in priority order, following your ticket-breakdown answers from
+   install. Each story is a PM-checkable outcome, with a short imperative subject
    (≤ 80 chars), a description containing context plus an **Acceptance criteria** checklist, and **points**:
    `1` = 2h, `2` = 4h, `4` = 1 day (bigger stories are split).
 2. Claude runs a dry run that places each story: the current sprint (the open `Sprint <N>` version with the highest
@@ -186,7 +201,8 @@ Run these in Claude Code, in whatever project you're working on.
 
 ### `/report-day`
 
-1. Claude pulls today's activity and drafts a report:
+1. Claude pulls today's activity and fills in your report template (`report-template.md`). With the default
+   template, the result looks like this:
 
    ```markdown
    **Daily report — 2026-09-22**
@@ -206,6 +222,12 @@ Run these in Claude Code, in whatever project you're working on.
 
    **Done** = status Closed; **In progress** = everything else. If it doesn't know your blockers or plan for
    tomorrow, it asks you first.
+
+   **Changing the format:** edit `report-template.md` in the opflow folder. It's plain Markdown that Talk renders.
+   You can rename, reorder, add or remove sections and change the title. `{{date}}` becomes today's date, and
+   `<!-- comments -->` are instructions for Claude, e.g. `<!-- one line per task, no ticket numbers -->`. They are
+   followed but never posted. The file is git-ignored, so each dev keeps their own format. To start over, delete it
+   and run `npm run install-skills`.
 2. You see the exact text and choose **Approve**, **Edit** or **Cancel**.
 3. On **Approve**, it's posted to your Talk room.
 
@@ -299,7 +321,7 @@ names and ids only.
 ## 7. Files and folders
 
 ```
-bin/opflow.js           CLI entry point (loads .env, wires the API clients)
+bin/opflow.js         CLI entry point (loads .env, wires the API clients)
 src/cli.js            command parsing and the five commands
 src/config.js         .env loading and validation
 src/http.js           shared JSON HTTP helper + readable error messages
@@ -308,10 +330,12 @@ src/openproject.js    OpenProject API v3 client
 src/talk.js           Nextcloud Talk client
 src/report.js         groups work packages by status
 scripts/install.js    renders skills/ into ~/.claude/skills
+scripts/session-reminder.js  optional SessionStart hook: one-line reminder of the skills
 skills/               skill templates (plan-feature, done-tasks, report-day)
 tests/                node:test unit tests (APIs are mocked — no network)
 .env                  your credentials (git-ignored)
-.opflow/                working files tasks.json / report.md (git-ignored)
+.opflow/              working files tasks.json / report.md (git-ignored)
+report-template.md    your /report-day format (git-ignored; from report-template.example.md)
 docs/superpowers/     design spec and implementation plan
 ```
 

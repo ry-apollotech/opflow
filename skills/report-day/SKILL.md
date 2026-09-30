@@ -11,26 +11,12 @@ disable-model-invocation: true
    ```bash
    node "{{OPFLOW}}" op:today --json
    ```
-2. Draft the report in this format (Talk renders Markdown):
-
-   ```markdown
-   **Daily report — YYYY-MM-DD**
-
-   **Done**
-   - #id Subject
-
-   **In progress**
-   - #id Subject — short note
-
-   **Blockers**
-   - None
-
-   **Tomorrow**
-   - ...
-   ```
-   - **Done** = status `Closed`; **In progress** = every other status.
-   - Add short notes from this conversation's work where they help.
-   - If blockers or tomorrow's plan are unknown, ask the user in one question before drafting.
+2. Read the user's report template at `{{REPORT_TEMPLATE}}`. If it's missing, tell the user to run `npm run install-skills` in the opflow folder, and stop. Draft the report by filling in that template:
+   - Keep its sections, their order and its wording, and replace example lines like `#id Subject` with real items.
+   - Replace `{{date}}` with today's date (YYYY-MM-DD).
+   - Follow the instructions in `<!-- ... -->` comments, then leave every comment out of the report.
+   - Unless the template says otherwise: **Done** = status `Closed`; **In progress** = every other status; add short notes from this conversation's work where they help.
+   - If the template needs something you don't know, such as blockers or tomorrow's plan, ask the user in one question before drafting.
 3. Show the exact final text, then ask with AskUserQuestion: **Approve**, **Edit**, **Cancel**.
 4. Only after **Approve**, write the text to `{{DATA_DIR}}/report.md`. If writing the file fails for any reason, stop and tell the user — never run the `--yes` command. Otherwise run:
 

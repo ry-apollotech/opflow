@@ -67,6 +67,12 @@ Software: **Node.js 18+** and **Claude Code**. There are no npm dependencies to 
    npm run install-skills
    ```
 
+   The first time, it asks how `/plan-feature` should break work into tickets: whether testing work and
+   docs/deployment work go in acceptance criteria, get their own tickets, or are left out, and whether tickets
+   should be balanced, fewer and bigger, or detailed. Press Enter for the defaults. Your answers are saved in
+   `.opflow/preferences.json`, and later runs reuse them. To change them:
+   `npm run install-skills -- --reconfigure`.
+
 5. Add both of these to `permissions.ask` in `~/.claude/settings.json`, so Claude Code asks you before every write:
 
    ```json
@@ -104,6 +110,18 @@ The skills only run when you type them. Claude never starts them on its own whil
   shows where each one goes. Approve, and they're created and assigned to you.
 - `/done-tasks`: review which stories are finished. Approve, and they're set to Closed.
 - `/report-day`: review the drafted daily report. Approve, and it's posted to your Talk room.
+
+### Your report format
+
+`/report-day` fills in `report-template.md` in this folder. The installer creates it from
+`report-template.example.md`, and it's git-ignored, so it's yours to change:
+
+- Rename, reorder, add or remove sections, or change the title line. Talk renders Markdown.
+- `{{date}}` becomes today's date.
+- `<!-- comments -->` are instructions for Claude, e.g. `<!-- one line per task, no ticket numbers -->`. They are
+  followed but never posted.
+
+To go back to the default, delete `report-template.md` and run `npm run install-skills`.
 
 ### How points and sprints work
 

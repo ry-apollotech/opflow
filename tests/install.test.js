@@ -1,8 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ASK_RULES, isMainModule, renderSkill, sessionStartHook, skillDirNames, SKILLS_DIR } from '../scripts/install.js';
+import {
+  ASK_RULES,
+  copyIfMissing,
+  isMainModule,
+  parseInstallArgs,
+  renderSkill,
+  sessionStartHook,
+  skillDirNames,
+  SKILLS_DIR,
+} from '../scripts/install.js';
 
 function globToRegExp(glob) {
   const escaped = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&');
@@ -16,11 +26,12 @@ function innerGlob(rule) {
 }
 
 test('renderSkill replaces every placeholder', () => {
-  const out = renderSkill('node "{{OPFLOW}}" x --file "{{DATA_DIR}}/a" "{{DATA_DIR}}/b"', {
+  const out = renderSkill('node "{{OPFLOW}}" x --file "{{DATA_DIR}}/a" "{{DATA_DIR}}/b" {{REPORT_TEMPLATE}}', {
     opflow: 'C:/repo/bin/opflow.js',
     dataDir: 'C:/repo/.opflow',
+    reportTemplate: 'C:/repo/report-template.md',
   });
-  assert.equal(out, 'node "C:/repo/bin/opflow.js" x --file "C:/repo/.opflow/a" "C:/repo/.opflow/b"');
+  assert.equal(out, 'node "C:/repo/bin/opflow.js" x --file "C:/repo/.opflow/a" "C:/repo/.opflow/b" C:/repo/report-template.md');
 });
 
 test('every skill template has frontmatter, a --yes command, and an approval guard', () => {
@@ -33,6 +44,17 @@ test('every skill template has frontmatter, a --yes command, and an approval gua
     assert.match(text, /node "\{\{OPFLOW\}\}" .*--yes/, name);
     assert.match(text, /Never run a command with `--yes` without an explicit \*\*Approve\*\*/, name);
   }
+});
+
+test('plan-feature takes its breakdown rules from the installer', () => {
+  assert.match(readFileSync(join(SKILLS_DIR, 'plan-feature', 'SKILL.md'), 'utf8'), /\{\{PLAN_RULES\}\}/);
+  assert.equal(renderSkill('a {{PLAN_RULES}} b', { planRules: 'RULES' }), 'a RULES b');
+});
+
+test('parseInstallArgs reads --reconfigure', () => {
+  assert.deepEqual(parseInstallArgs([]), { reconfigure: false });
+  assert.deepEqual(parseInstallArgs(['--reconfigure']), { reconfigure: true });
+  assert.throws(() => parseInstallArgs(['--nope']), { message: 'Unknown flag: --nope' });
 });
 
 test('ASK_RULES cover both Bash and PowerShell', () => {
@@ -85,4 +107,23 @@ test('sessionStartHook runs the reminder script on new sessions only', () => {
     matcher: 'startup',
     hooks: [{ type: 'command', command: 'node "C:/repo/scripts/session-reminder.js"' }],
   });
+});
+
+test('copyIfMissing creates the file once and never overwrites edits', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'opflow-'));
+  const source = join(dir, 'report-template.example.md');
+  const target = join(dir, 'report-template.md');
+  writeFileSync(source, 'default');
+  assert.equal(await copyIfMissing(source, target), true);
+  assert.equal(readFileSync(target, 'utf8'), 'default');
+  writeFileSync(target, 'my format');
+  assert.equal(await copyIfMissing(source, target), false);
+  assert.equal(readFileSync(target, 'utf8'), 'my format');
+});
+
+test('report-day follows the report template; the example exists and personal copies are git-ignored', () => {
+  const root = join(SKILLS_DIR, '..');
+  assert.match(readFileSync(join(SKILLS_DIR, 'report-day', 'SKILL.md'), 'utf8'), /\{\{REPORT_TEMPLATE\}\}/);
+  assert.match(readFileSync(join(root, 'report-template.example.md'), 'utf8'), /\{\{date\}\}/);
+  assert.match(readFileSync(join(root, '.gitignore'), 'utf8'), /^report-template\.md$/m);
 });
