@@ -27,7 +27,10 @@ export function cliDeps(config) {
 
 async function setup() {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    console.error(`setup needs a terminal. Run it in your own terminal:\n  node "${self}" setup`);
+    console.error(
+      `setup needs a terminal. Run it in your own terminal:\n  node "${self}" setup\n` +
+        'On Windows, use PowerShell or Windows Terminal (Git Bash/mintty may not count as a terminal).',
+    );
     return 1;
   }
   const prompter = createTerminalPrompter(process.stdin, process.stdout);

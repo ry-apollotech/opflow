@@ -74,3 +74,13 @@ test('saved preferences load back; a missing or broken file loads as null', asyn
   writeFileSync(file, '{not json');
   assert.equal(await loadPreferences(file), null);
 });
+
+test('askPreferences: Enter keeps the current answers and the prompt shows them', async () => {
+  const current = { testing: 'excluded', size: 'detailed', docs: 'separate' };
+  const prompts = [];
+  const lines = [];
+  const prefs = await askPreferences(async (q) => { prompts.push(q); return ''; }, (l) => lines.push(l), current);
+  assert.deepEqual(prefs, current);
+  assert.deepEqual(prompts, ['Choose 1-3 [2]: ', 'Choose 1-3 [3]: ', 'Choose 1-3 [3]: ']);
+  assert.ok(lines.some((l) => l.includes('2) Excluded (current)')), lines.join('\n'));
+});

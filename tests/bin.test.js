@@ -38,5 +38,6 @@ test('setup without a terminal exits 1 with the command to run', () => {
   const r = opflow(['setup'], tempHome());
   assert.equal(r.status, 1);
   assert.match(r.stderr, /setup needs a terminal/);
+  assert.match(r.stderr, /On Windows, use PowerShell or Windows Terminal/);
   assert.ok(r.stderr.includes(`node "${BIN.replaceAll('\\', '/')}" setup`), r.stderr);
 });

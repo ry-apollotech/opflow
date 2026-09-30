@@ -129,3 +129,10 @@ test('createTerminalPrompter echoes normal answers but never secret ones', async
   assert.match(shown, /Token: /);
   assert.ok(!shown.includes('hunter2'), shown);
 });
+
+test('re-running setup without --keep-preferences: Enter keeps the saved preferences', async () => {
+  const { home, root } = dirs();
+  await run({ home, root, prompter: fakePrompter([...Object.values(answers), '3', '3', '2']) });
+  await run({ home, root, prompter: fakePrompter([]) });
+  assert.deepEqual(JSON.parse(readFileSync(join(home, 'preferences.json'), 'utf8')), { testing: 'separate', size: 'detailed', docs: 'excluded' });
+});

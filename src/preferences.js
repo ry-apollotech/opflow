@@ -82,20 +82,26 @@ export function planRules(prefs) {
     .join('\n');
 }
 
-// ask(prompt) returns the typed line; Enter picks the default, a number picks that option.
-export async function askPreferences(ask, log = () => {}) {
+// ask(prompt) returns the typed line; Enter keeps `current` (the defaults on first run), a number picks that option.
+export async function askPreferences(ask, log = () => {}, current = null) {
+  const saved = current ? normalizePreferences(current) : null;
+  const start = saved ?? DEFAULTS;
   const prefs = {};
   for (const [i, q] of QUESTIONS.entries()) {
+    const keep = q.options.findIndex((o) => o.value === start[q.key]) + 1;
     log(`\n${i + 1}/${QUESTIONS.length}  ${q.question}`);
-    q.options.forEach((o, n) => log(`  ${n + 1}) ${o.label}${n === 0 ? ' (default)' : ''} - ${o.hint}`));
+    q.options.forEach((o, n) => {
+      const mark = n + 1 === keep ? (saved ? ' (current)' : ' (default)') : '';
+      log(`  ${n + 1}) ${o.label}${mark} - ${o.hint}`);
+    });
     for (;;) {
-      const answer = ((await ask(`Choose 1-${q.options.length} [1]: `)) ?? '').trim();
-      const n = answer === '' ? 1 : Number(answer);
+      const answer = ((await ask(`Choose 1-${q.options.length} [${keep}]: `)) ?? '').trim();
+      const n = answer === '' ? keep : Number(answer);
       if (Number.isInteger(n) && n >= 1 && n <= q.options.length) {
         prefs[q.key] = q.options[n - 1].value;
         break;
       }
-      log(`  Please type a number from 1 to ${q.options.length}, or press Enter for the default.`);
+      log(`  Please type a number from 1 to ${q.options.length}, or press Enter to keep ${keep}.`);
     }
   }
   return prefs;

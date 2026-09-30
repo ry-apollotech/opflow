@@ -161,7 +161,7 @@ Write commands are dry runs unless `--yes` is given. `/opflow:setup` shows the e
 | Symptom | Fix |
 |---|---|
 | `opflow is not set up` | Run `/opflow:setup`. |
-| `setup needs a terminal` | Copy the printed command into your own terminal. Running it with `!` inside Claude Code doesn't work. |
+| `setup needs a terminal` | Copy the printed command into your own terminal. Running it with `!` inside Claude Code doesn't work. On Windows, use PowerShell or Windows Terminal; Git Bash (mintty) may not count as a terminal. |
 | `/opflow:…` commands missing | Open `/plugin`, check that opflow is installed and enabled, then restart Claude Code. |
 | `FAIL OpenProject user: … 401` | Wrong or revoked API token, or wrong OpenProject URL. Re-run setup. |
 | `FAIL OpenProject project: … 404` | Wrong project identifier, or you're not a member of the project. |

@@ -97,7 +97,7 @@ export async function runSetup({ home, root, prompter, log, runCheck, keepPrefer
     log('Keeping your saved ticket-breakdown preferences.');
   } else {
     log('\nHow should /opflow:plan-feature break your work into tickets?');
-    await savePreferences(preferencesFile(home), await askPreferences((q) => prompter.ask(q), log));
+    await savePreferences(preferencesFile(home), await askPreferences((q) => prompter.ask(q), log, saved));
   }
 
   if (await copyIfMissing(join(root, 'report-template.example.md'), reportTemplateFile(home))) {
