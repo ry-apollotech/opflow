@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { readFile, unlink } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run, USAGE } from '../src/cli.js';
 import { loadUserConfig, opflowHome, preferencesFile } from '../src/home.js';
@@ -41,6 +43,7 @@ async function setup() {
       prompter,
       log: (line) => console.log(line),
       runCheck: () => run(['check'], cliDeps(loadUserConfig(home))),
+      settingsFile: join(homedir(), '.claude', 'settings.json'),
       keepPreferences: argv.includes('--keep-preferences'),
       migrateFrom: process.env.OPFLOW_MIGRATE_FROM || null,
     });

@@ -1,6 +1,6 @@
 import { constants } from 'node:fs';
 import { chmod, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { Writable } from 'node:stream';
 import { parseEnv } from './config.js';
@@ -11,7 +11,7 @@ export const FIELDS = [
   { key: 'OP_URL', label: 'OpenProject URL', hint: 'Browser address bar, e.g. https://openproject.example.com' },
   { key: 'OP_API_KEY', label: 'OpenProject API token', secret: true, hint: 'OpenProject → avatar → My account → Access tokens → API → + API token' },
   { key: 'OP_PROJECT', label: 'OpenProject project identifier', hint: 'The part after /projects/ in the project URL' },
-  { key: 'OP_BACKLOG', label: 'Backlog version name', hint: 'OpenProject → project → Backlogs, e.g. Backlog: Android POS' },
+  { key: 'OP_BACKLOG', label: 'Backlog version name', optional: true, hint: 'OpenProject → project → Backlogs, e.g. Backlog: Android POS. Skip it if you have none: stories that don\'t fit in the sprint are then not created.' },
   { key: 'NC_URL', label: 'Nextcloud URL', hint: 'Browser address bar, e.g. https://cloud.example.com' },
   { key: 'NC_USER', label: 'Nextcloud username', hint: 'Settings → Personal info (login name, not display name)' },
   { key: 'NC_APP_PASSWORD', label: 'Nextcloud app password', secret: true, hint: 'Settings → Security → Devices & sessions → Create new app password' },
@@ -71,8 +71,14 @@ async function promptFields(prompter, current, log) {
     for (;;) {
       const existing = current[f.key] ?? '';
       const shown = existing ? ` [${f.secret ? maskSecret(existing) : existing}]` : '';
+      const note = f.optional ? (existing ? ' (Enter keeps, - removes)' : ' (Enter to skip)') : '';
       const ask = f.secret ? prompter.askSecret : prompter.ask;
-      const value = ((await ask(`${f.label}${shown}: `)) ?? '').trim() || existing;
+      const answer = ((await ask(`${f.label}${shown}${note}: `)) ?? '').trim();
+      if (f.optional && (answer === '-' || (!answer && !existing))) {
+        values[f.key] = '';
+        break;
+      }
+      const value = answer || existing;
       if (value) {
         values[f.key] = f.key.endsWith('_URL') ? value.replace(/\/+$/, '') : value;
         break;
@@ -83,7 +89,44 @@ async function promptFields(prompter, current, log) {
   return values;
 }
 
-export async function runSetup({ home, root, prompter, log, runCheck, keepPreferences = false, migrateFrom = null }) {
+function printRules(log) {
+  log('Add both of these to "permissions.ask" in ~/.claude/settings.json yourself:');
+  for (const rule of ASK_RULES) log(`  "${rule}"`);
+}
+
+// Adds ASK_RULES to Claude Code's permissions.ask after asking; never touches a file it can't parse.
+async function addApprovalRules(settingsFile, prompter, log) {
+  let raw = null;
+  try {
+    raw = await readFile(settingsFile, 'utf8');
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+  let settings = {};
+  try {
+    if (raw !== null) settings = JSON.parse(raw);
+  } catch {
+    settings = null;
+  }
+  log('');
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+    log(`Couldn't read ${settingsFile} as JSON, so it was left unchanged.`);
+    return printRules(log);
+  }
+  const ask = Array.isArray(settings.permissions?.ask) ? settings.permissions.ask : [];
+  const missing = ASK_RULES.filter((rule) => !ask.includes(rule));
+  if (!missing.length) return log('Approval rules are already in your Claude Code settings.');
+  if (!(await confirm(prompter, `Make Claude Code ask you before every opflow write (adds ${missing.length} rules to ${settingsFile})? [Y/n]: `))) {
+    return printRules(log);
+  }
+  if (raw !== null) await writeFile(`${settingsFile}.opflow-backup`, raw);
+  await mkdir(dirname(settingsFile), { recursive: true });
+  const next = { ...settings, permissions: { ...settings.permissions, ask: [...ask, ...missing] } };
+  await writeFile(settingsFile, `${JSON.stringify(next, null, 2)}\n`);
+  log(`Added the approval rules to ${settingsFile}${raw !== null ? ` (backup: ${settingsFile}.opflow-backup)` : ''}.`);
+}
+
+export async function runSetup({ home, root, prompter, log, runCheck, settingsFile, keepPreferences = false, migrateFrom = null }) {
   await mkdir(home, { recursive: true, mode: 0o700 });
   log(`opflow setup: your settings are saved in ${home}`);
 
@@ -106,9 +149,7 @@ export async function runSetup({ home, root, prompter, log, runCheck, keepPrefer
 
   log('\nChecking access (read-only):');
   const code = await runCheck();
-  log('\nRecommended: add both of these to "permissions.ask" in ~/.claude/settings.json so Claude Code');
-  log('asks you again before any opflow write command runs:');
-  for (const rule of ASK_RULES) log(`  "${rule}"`);
+  await addApprovalRules(settingsFile, prompter, log);
   return code;
 }
 

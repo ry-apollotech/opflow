@@ -25,10 +25,11 @@ function dirs() {
   const home = mkdtempSync(join(tmpdir(), 'opflow-home-'));
   const root = mkdtempSync(join(tmpdir(), 'opflow-root-'));
   writeFileSync(join(root, 'report-template.example.md'), 'default template');
-  return { home, root };
+  return { home, root, settingsFile: join(home, 'claude-settings.json') };
 }
 
-const run = (opts) => runSetup({ log: () => {}, runCheck: async () => 0, ...opts });
+const run = (opts) =>
+  runSetup({ log: () => {}, runCheck: async () => 0, settingsFile: join(opts.home, 'claude-settings.json'), ...opts });
 
 test('FIELDS covers every config key in order, secrets flagged', () => {
   assert.deepEqual(FIELDS.map((f) => f.key), Object.keys(answers));
@@ -92,15 +93,10 @@ test('an existing repo .env is offered as starting values', async () => {
   assert.equal(parseEnv(readFileSync(join(home, '.env'), 'utf8')).NC_USER, 'ryan');
 });
 
-test('setup ends by printing the ask rules and returns the check result', async () => {
+test('setup returns the check result', async () => {
   const { home, root } = dirs();
-  const lines = [];
-  const code = await runSetup({
-    home, root, log: (l) => lines.push(l), runCheck: async () => 1,
-    prompter: fakePrompter([...Object.values(answers), '', '', '']),
-  });
+  const code = await run({ home, root, runCheck: async () => 1, prompter: fakePrompter([...Object.values(answers), '', '', '']) });
   assert.equal(code, 1);
-  for (const rule of ASK_RULES) assert.ok(lines.some((l) => l.includes(rule)), rule);
 });
 
 test('copyIfMissing never overwrites', async () => {
@@ -135,4 +131,54 @@ test('re-running setup without --keep-preferences: Enter keeps the saved prefere
   await run({ home, root, prompter: fakePrompter([...Object.values(answers), '3', '3', '2']) });
   await run({ home, root, prompter: fakePrompter([]) });
   assert.deepEqual(JSON.parse(readFileSync(join(home, 'preferences.json'), 'utf8')), { testing: 'separate', size: 'detailed', docs: 'excluded' });
+});
+
+test('the backlog can be skipped with Enter, and - removes a saved one', async () => {
+  const { home, root } = dirs();
+  const skip = fakePrompter([...Object.values({ ...answers, OP_BACKLOG: '' }), '', '', '']);
+  await run({ home, root, prompter: skip });
+  assert.ok(skip.prompts.some((q) => q.startsWith('Backlog version name (Enter to skip): ')), skip.prompts.join('\n'));
+  assert.equal(parseEnv(readFileSync(join(home, '.env'), 'utf8')).OP_BACKLOG, '');
+
+  const { home: home2 } = dirs();
+  await run({ home: home2, root, prompter: fakePrompter([...Object.values(answers), '', '', '']) });
+  const clear = fakePrompter(['', '', '', '-']);
+  await run({ home: home2, root, prompter: clear, keepPreferences: true });
+  assert.equal(parseEnv(readFileSync(join(home2, '.env'), 'utf8')).OP_BACKLOG, '');
+  assert.ok(clear.prompts.some((q) => q.includes('[Backlog: Android POS] (Enter keeps, - removes)')), clear.prompts.join('\n'));
+});
+
+const full = () => [...Object.values(answers), '', '', ''];
+
+test('setup adds the approval rules to Claude settings, keeping everything else and a backup', async () => {
+  const { home, root, settingsFile } = dirs();
+  const before = { model: 'x', permissions: { allow: ['Read'], ask: ['Other(y)'] } };
+  writeFileSync(settingsFile, JSON.stringify(before, null, 2));
+  const prompter = fakePrompter([...full(), '']);
+  await run({ home, root, prompter });
+  assert.ok(prompter.prompts.at(-1).startsWith('Make Claude Code ask you before every opflow write'), prompter.prompts.at(-1));
+  const after = JSON.parse(readFileSync(settingsFile, 'utf8'));
+  assert.deepEqual(after, { model: 'x', permissions: { allow: ['Read'], ask: ['Other(y)', ...ASK_RULES] } });
+  assert.deepEqual(JSON.parse(readFileSync(`${settingsFile}.opflow-backup`, 'utf8')), before);
+});
+
+test('approval rules: created when settings are missing, never duplicated, no question once present', async () => {
+  const { home, root, settingsFile } = dirs();
+  await run({ home, root, prompter: fakePrompter(full()) });
+  assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')), { permissions: { ask: ASK_RULES } });
+  const again = fakePrompter([]);
+  await run({ home, root, prompter: again, keepPreferences: true });
+  assert.equal(again.prompts.length, FIELDS.length);
+  assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')).permissions.ask, ASK_RULES);
+});
+
+test('approval rules: "n" or unreadable settings leave the file alone and print the rules', async () => {
+  for (const [content, answer] of [['{"model":"x"}', 'n'], ['{ not json', '']]) {
+    const { home, root, settingsFile } = dirs();
+    writeFileSync(settingsFile, content);
+    const lines = [];
+    await run({ home, root, log: (l) => lines.push(l), prompter: fakePrompter([...full(), answer]) });
+    assert.equal(readFileSync(settingsFile, 'utf8'), content);
+    for (const rule of ASK_RULES) assert.ok(lines.some((l) => l.includes(rule)), `${content}: ${rule}`);
+  }
 });

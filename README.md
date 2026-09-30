@@ -28,7 +28,7 @@ Two requirements:
 | 1 | OpenProject URL | The browser address bar, without the path, e.g. `https://openproject.example.com` |
 | 2 | OpenProject API token | OpenProject → avatar (top right) → **My account** → **Access tokens** → **API** → **+ API token**. Copy it right away; it is shown once. |
 | 3 | OpenProject project | The identifier in the project URL: `/projects/<identifier>/…` |
-| 4 | Your team's backlog version | OpenProject → project → **Backlogs**. Use the exact name, e.g. `Backlog: Android POS` or `Backlog: ERP`. |
+| 4 | Your team's backlog version (optional) | OpenProject → project → **Backlogs**. Use the exact name, e.g. `Backlog: Android POS` or `Backlog: ERP`. Press Enter to skip if you have none. |
 | 5 | Nextcloud URL | The browser address bar, e.g. `https://cloud.example.com` |
 | 6 | Nextcloud username | Nextcloud → avatar → **Settings** → **Personal info** (the login name, not the display name) |
 | 7 | Nextcloud app password | Nextcloud → **Settings** → **Security** → **Devices & sessions** → name it `opflow` → **Create new app password**. Not your login password. |
@@ -45,17 +45,17 @@ Your accounts also need:
   them, and set their version. The **User Story** type must be enabled in the project.
 - **Nextcloud:** membership in the Talk room you post to.
 
-## Recommended: approval rules
+## Approval rules
 
-Add both of these to `permissions.ask` in `~/.claude/settings.json`, so Claude Code asks you before every write:
+At the end, setup asks whether Claude Code should confirm with you before every opflow write. Say **Y**:
+- It adds these two rules to `permissions.ask` in `~/.claude/settings.json`, keeping everything else in the file.
+- It saves a copy of the old file first, as `settings.json.opflow-backup`.
 
 ```json
-{
-  "permissions": {
-    "ask": ["Bash(node *opflow.js*--yes*)", "PowerShell(node *opflow.js*--yes*)"]
-  }
-}
+"Bash(node *opflow.js*--yes*)", "PowerShell(node *opflow.js*--yes*)"
 ```
+
+If you say no, or your settings file can't be read, setup prints the rules for you to add yourself.
 
 ## Daily use (in any project, in Claude Code)
 
@@ -84,6 +84,8 @@ of working time plus room for tasks done in parallel.
   don't count toward yours.
 - Stories are placed in priority order. If one doesn't fit, it goes to your backlog version, and a later, smaller
   story can still fill the room left.
+- If you have no backlog set, stories that don't fit are **not created**. The table lists them as "Not created
+  (sprint is full, no backlog set)", so you can plan them next sprint.
 
 ### Ticket breakdown
 

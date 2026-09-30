@@ -23,7 +23,7 @@ disable-model-invocation: true
    node "${CLAUDE_PLUGIN_ROOT}/bin/opflow.js" op:create --file ~/.opflow/tasks.json
    ```
 
-   The dry run finds the current sprint (the open `Sprint <N>` version), counts your open work already in it, and fills the sprint up to 60 points in priority order; stories that don't fit go to the backlog version. If writing the file fails or the dry run prints `Error:`, stop and tell the user — never run the `--yes` command. If it says opflow is not set up, tell the user to run `/opflow:setup`.
+   The dry run finds the current sprint (the open `Sprint <N>` version), counts your open work already in it, and fills the sprint up to 60 points in priority order; stories that don't fit go to the backlog version, or, if no backlog is set, are listed as not created. If writing the file fails or the dry run prints `Error:`, stop and tell the user — never run the `--yes` command. If it says opflow is not set up, tell the user to run `/opflow:setup`.
 4. Show them as a numbered table (`# | Subject | Points | Goes to | Acceptance criteria`) followed by the dry run's sprint total line, then ask with AskUserQuestion: **Approve**, **Edit**, **Cancel**.
    - **Edit** → apply the changes, rewrite `tasks.json`, re-run the dry run, show the full table again, ask again.
    - **Cancel** → stop. Nothing is created.

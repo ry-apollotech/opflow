@@ -13,13 +13,13 @@ disable-model-invocation: true
    | OpenProject URL | Browser address bar, e.g. `https://openproject.example.com` |
    | OpenProject API token | OpenProject → avatar → **My account** → **Access tokens** → **API** → **+ API token** |
    | Project identifier | The part after `/projects/` in the project URL |
-   | Backlog version name | OpenProject → project → **Backlogs**, e.g. `Backlog: Android POS` |
+   | Backlog version name (optional) | OpenProject → project → **Backlogs**, e.g. `Backlog: Android POS`. Enter skips it; stories that don't fit in the sprint are then not created. |
    | Nextcloud URL | Browser address bar, e.g. `https://cloud.example.com` |
    | Nextcloud username | **Settings** → **Personal info** (login name) |
    | Nextcloud app password | **Settings** → **Security** → **Devices & sessions** → **Create new app password** |
    | Talk room token | Open the room; the part after `/call/` in the URL |
 
-   It then asks three questions about how tickets are broken down, and creates their report template.
+   It then asks three questions about how tickets are broken down, creates their report template, runs `check`, and offers to add approval rules to their Claude Code settings so every opflow write asks first.
 2. Tell them **not to paste tokens or passwords into this chat**, and to run this in their own terminal (not with `!` here, because it needs a real terminal to hide what they type):
 
    ```bash

@@ -84,7 +84,7 @@ It needs a real terminal so it can hide what you type for secrets. It asks, in o
 | OpenProject URL | Your OpenProject base URL, e.g. `https://openproject.example.com` |
 | OpenProject API token (hidden) | OpenProject → avatar → **My account** → **Access tokens** → API → generate |
 | Project identifier (or numeric id) | The project URL: `/projects/<identifier>` |
-| Backlog version name | OpenProject → project → **Backlogs**, e.g. `Backlog: Android POS` (where overflow stories go) |
+| Backlog version name (optional) | OpenProject → project → **Backlogs**, e.g. `Backlog: Android POS` (where overflow stories go). Enter skips it; with no backlog, overflow stories are not created. Type `-` to remove a saved one. |
 | Nextcloud URL | Your Nextcloud base URL, e.g. `https://cloud.example.com` |
 | Nextcloud username | Nextcloud profile (login name) |
 | Nextcloud app password (hidden) | Nextcloud → **Settings** → **Security** → **Devices & sessions** → create app password |
@@ -103,7 +103,7 @@ After the values, setup does four more things:
    review or refactoring on their own, and a final merge/split pass runs before you see the table.
 2. It creates your report template, if you don't have one yet.
 3. It runs `check`.
-4. It prints the approval rules from 3.5.
+4. It offers to add the approval rules from 3.5 to your Claude Code settings.
 
 **Re-running setup:**
 - Run it any time. Pressing Enter keeps each current value; secrets are shown masked as `****1234`.
@@ -148,9 +148,14 @@ OK    Talk room: <room name>
 
 Any `FAIL` line tells you what's wrong — see [Troubleshooting](#8-troubleshooting).
 
-### 3.5 Add the permission rules (recommended)
+### 3.5 Approval rules
 
-Add both rules to `permissions.ask` in `~/.claude/settings.json`:
+Setup offers to add both rules to `permissions.ask` in `~/.claude/settings.json`:
+- It keeps everything else in the file and saves a copy of the old file as `settings.json.opflow-backup`.
+- It never adds a rule twice.
+- It leaves a file it can't parse unchanged.
+
+If you decline, add them yourself:
 
 ```json
 {
@@ -164,7 +169,6 @@ Add both rules to `permissions.ask` in `~/.claude/settings.json`:
 ```
 
 With these, Claude Code asks you again before **any** `opflow` write command runs, whichever shell tool it uses.
-Plugins can't change your permissions, so this step is manual.
 
 ### 3.6 Session reminder
 
@@ -314,7 +318,7 @@ Nothing reaches OpenProject or Nextcloud without your explicit OK:
 1. **The skills** always show the exact content and wait for **Approve** before running any `--yes` command.
    If writing the input file fails, they stop instead of running the command.
 2. **The CLI** refuses to write without `--yes` — the default is always a dry run.
-3. **Claude Code permissions** — the `ask` rules from [3.5](#35-add-the-permission-rules-recommended) make Claude Code
+3. **Claude Code permissions** — the `ask` rules from [3.5](#35-approval-rules) make Claude Code
    prompt you before any `opflow … --yes` command runs, even if a skill misbehaves.
 
 Secrets are never printed: error messages show only the HTTP method, URL path and status, and `check` prints
@@ -379,7 +383,7 @@ your username and app password, plus the `OCS-APIRequest: true` header.
 | `Type "User Story" not found. Available: …` | Enable User Story in the project's settings (see 3.2), or check the spelling of the type name on your instance. |
 | `Status "Closed" not found. Available: …` | Your instance names the done status differently; the list shows what exists. |
 | `FAIL Current sprint: No open version named "Sprint <N>"…` | No sprint version is open in the project yet. |
-| `FAIL Backlog version: …` | `OP_BACKLOG` is unset or doesn't match a version name; the error lists the available ones. |
+| `FAIL Backlog version: …` | The backlog name doesn't match a version; the error lists the available ones. Re-run setup. (`SKIP` means none is set, which is fine.) |
 | `FAIL Talk room: … 401` / raw XML in the error | Wrong `NC_USER` / `NC_APP_PASSWORD`. Use an app password, not your login password. |
 | `FAIL Talk room: … 404` | Wrong `NC_TALK_ROOM` token, or you're not in that room. |
 | `422 …` on create | You can't be assigned in that project, or a required custom field is missing. |

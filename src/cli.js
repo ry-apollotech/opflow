@@ -48,7 +48,7 @@ function stripBOM(text) {
   return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
-const BACKLOG_UNSET = 'OP_BACKLOG is not set in .env (e.g. OP_BACKLOG="Backlog: Android POS")';
+const NO_BACKLOG = 'Not created (sprint is full, no backlog set)';
 
 async function check(_opts, { op, talk, log, backlog }) {
   let ok = true;
@@ -69,20 +69,22 @@ async function check(_opts, { op, talk, log, backlog }) {
     const sprint = currentSprint(await versions);
     return `${sprint.name} (id ${sprint.id})`;
   });
-  await step('Backlog version', async () => {
-    if (!backlog) throw new Error(BACKLOG_UNSET);
-    const version = findByName(await versions, backlog, 'Version');
-    return `${version.name} (id ${version.id})`;
-  });
+  if (backlog) {
+    await step('Backlog version', async () => {
+      const version = findByName(await versions, backlog, 'Version');
+      return `${version.name} (id ${version.id})`;
+    });
+  } else {
+    log("SKIP  Backlog version: not set (overflow stories won't be created)");
+  }
   await step('Talk room', async () => (await talk.roomInfo()).displayName);
   return ok ? 0 : 1;
 }
 
 async function planSprint(tasks, { op, backlog: backlogName }) {
-  if (!backlogName) throw new Error(BACKLOG_UNSET);
   const versions = await op.listVersions();
   const sprint = currentSprint(versions);
-  const backlog = findByName(versions, backlogName, 'Version');
+  const backlog = backlogName ? findByName(versions, backlogName, 'Version') : null;
   const existingHours = (await op.listMyOpenInVersion(sprint.id)).reduce((sum, wp) => sum + durationToHours(wp.estimatedTime), 0);
   // round to whole minutes first so float noise in summed durations can't add a point
   const existing = Math.ceil(Math.round(existingHours * 60) / 60 / HOURS_PER_POINT);
@@ -93,7 +95,9 @@ async function planSprint(tasks, { op, backlog: backlogName }) {
     backlog,
     existing,
     split,
-    items: tasks.map((task) => ({ task, version: inSprint.has(task) ? sprint : backlog })),
+    // Without a backlog, stories that don't fit are left out rather than created somewhere unexpected.
+    items: tasks.map((task) => ({ task, version: inSprint.has(task) ? sprint : backlog })).filter((item) => item.version),
+    skipped: backlog ? [] : split.backlog,
   };
 }
 
@@ -103,7 +107,11 @@ function planSummary({ sprint, backlog, existing, split }) {
   return [
     `${sprint.name}: ${existing} existing + ${added} new = ${existing + added}/${SPRINT_POINTS} points`,
     ...list(split.sprint),
-    `${backlog.name}: ${split.backlog.length ? `${split.backlog.length} task(s)` : 'none'}`,
+    ...(backlog
+      ? [`${backlog.name}: ${split.backlog.length ? `${split.backlog.length} task(s)` : 'none'}`]
+      : split.backlog.length
+        ? [`${NO_BACKLOG}: ${split.backlog.length} task(s)`]
+        : []),
     ...list(split.backlog),
   ];
 }
@@ -117,7 +125,7 @@ async function opCreate(opts, deps) {
   const idsFor = (version) => ({ typeId: type.id, assigneeId: me.id, versionId: version.id });
 
   if (!opts.yes) {
-    log(`DRY RUN: ${tasks.length} ${TYPE_NAME}(s) would be created and assigned to ${me.name}. Re-run with --yes to create.`);
+    log(`DRY RUN: ${plan.items.length} ${TYPE_NAME}(s) would be created and assigned to ${me.name}. Re-run with --yes to create.`);
     planSummary(plan).forEach((line) => log(line));
     log(JSON.stringify(plan.items.map(({ task, version }) => workPackageCreateBody(task, idsFor(version))), null, 2));
     return 0;
@@ -132,10 +140,11 @@ async function opCreate(opts, deps) {
     } catch (err) {
       log(`FAILED on "${task.subject}": ${err.message}`);
       log(`Created before failure: ${created.map((wp) => `#${wp.id}`).join(', ') || 'none'}`);
-      log(`Not created: ${tasks.slice(i).map((t) => t.subject).join(' | ')}`);
+      log(`Not created: ${plan.items.slice(i).map((item) => item.task.subject).join(' | ')}`);
       return 1;
     }
   }
+  if (plan.skipped.length) log(`${NO_BACKLOG}: ${plan.skipped.map((t) => t.subject).join(' | ')}`);
   await removeFile(file);
   log(`Removed ${file}.`);
   return 0;

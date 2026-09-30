@@ -157,20 +157,30 @@ test('op:create counts my open sprint work toward 60 points and sends overflow t
   assert.equal(y.output(), '#101 A -> Sprint 152\n#102 B -> Backlog: Android POS\n#103 C -> Sprint 152\nRemoved t.json.');
 });
 
-test('op:create requires OP_BACKLOG and fails if that version does not exist', async () => {
-  const missing = setup({ files: tasksFile, backlog: null });
-  assert.equal(await run(['op:create', '--file', 't.json'], missing.deps), 1);
-  assert.equal(missing.output(), 'Error: OP_BACKLOG is not set in .env (e.g. OP_BACKLOG="Backlog: Android POS")');
+test('op:create without a backlog creates only what fits and lists the rest as not created', async () => {
+  const tasks = [{ subject: 'A', points: 4 }, { subject: 'B', points: 4 }, { subject: 'C', points: 2 }];
+  const listMyOpenInVersion = async () => [{ estimatedTime: 'PT108H' }]; // 54 points, 6 left
+  const s = setup({ files: { 't.json': JSON.stringify(tasks) }, op: { listMyOpenInVersion }, backlog: null });
+  assert.equal(await run(['op:create', '--file', 't.json'], s.deps), 0);
+  assert.match(s.output(), /DRY RUN: 2 User Story\(s\) would be created/);
+  assert.match(s.output(), /Not created \(sprint is full, no backlog set\): 1 task\(s\)\n  B \(4 pts\)/);
 
+  const y = setup({ files: { 't.json': JSON.stringify(tasks) }, op: { listMyOpenInVersion }, backlog: null });
+  assert.equal(await run(['op:create', '--file', 't.json', '--yes'], y.deps), 0);
+  assert.deepEqual(y.calls, [['create', 'A', sprintIds], ['create', 'C', sprintIds]]);
+  assert.equal(y.output(), '#101 A -> Sprint 152\n#102 C -> Sprint 152\nNot created (sprint is full, no backlog set): B\nRemoved t.json.');
+});
+
+test('op:create fails if the configured backlog version does not exist', async () => {
   const wrong = setup({ files: tasksFile, backlog: 'Backlog: Nope' });
   assert.equal(await run(['op:create', '--file', 't.json'], wrong.deps), 1);
   assert.match(wrong.output(), /^Error: Version "Backlog: Nope" not found/);
 });
 
-test('check fails the backlog line when OP_BACKLOG is missing', async () => {
+test('check skips the backlog line when no backlog is set', async () => {
   const s = setup({ backlog: null });
-  assert.equal(await run(['check'], s.deps), 1);
-  assert.match(s.output(), /FAIL  Backlog version: OP_BACKLOG is not set in \.env/);
+  assert.equal(await run(['check'], s.deps), 0);
+  assert.match(s.output(), /SKIP  Backlog version: not set \(overflow stories won't be created\)/);
 });
 
 test('op:done without --yes only shows the work packages', async () => {
