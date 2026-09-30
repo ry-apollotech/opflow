@@ -1,3 +1,5 @@
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { currentSprint, findByName } from './openproject.js';
 import { HOURS_PER_POINT, allocate, durationToHours, validateTasks, workPackageCreateBody } from './payloads.js';
 import { formatGroups, groupByStatus, summarize } from './report.js';
@@ -10,11 +12,18 @@ export const SPRINT_POINTS = 60;
 export const USAGE = `Usage: opflow <command> [options]
 
 Commands:
+  setup [--keep-preferences]     Set up credentials, ticket breakdown and report template (interactive)
+  plan:rules                     Print your /opflow:plan-feature ticket-breakdown rules
   check                          Verify OpenProject and Nextcloud Talk access (read-only)
   op:create --file tasks.json    Create User Stories in the current sprint or backlog (dry run unless --yes)
   op:done <id...>                Set work packages to Closed (dry run unless --yes)
   op:today [--json]              List your work packages updated today
   talk:post --file report.md     Post a message to the Talk room (dry run unless --yes)`;
+
+// PowerShell doesn't expand ~ for native programs, so skills' ~/.opflow/... paths are expanded here.
+function expandHome(path) {
+  return path && /^~[\\/]/.test(path) ? join(homedir(), path.slice(2)) : path;
+}
 
 export function parseArgs(argv) {
   const [command, ...rest] = argv;
@@ -23,7 +32,7 @@ export function parseArgs(argv) {
     const arg = rest[i];
     if (arg === '--yes') opts.yes = true;
     else if (arg === '--json') opts.json = true;
-    else if (arg === '--file') opts.file = rest[++i] ?? null;
+    else if (arg === '--file') opts.file = expandHome(rest[++i] ?? null);
     else if (arg.startsWith('--')) throw new Error(`Unknown flag: ${arg}`);
     else opts.ids.push(arg);
   }

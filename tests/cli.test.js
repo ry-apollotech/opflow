@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { run, parseArgs, USAGE } from '../src/cli.js';
 
 function setup({ files = {}, op: opOverrides = {}, talk: talkOverrides = {}, backlog = 'Backlog: Android POS' } = {}) {
@@ -260,4 +262,10 @@ test('check reports each item and returns 1 if any fail', async () => {
       'FAIL  Talk room: GET /x -> 401: Unauthorized',
     ].join('\n'),
   );
+});
+
+test('parseArgs expands a leading ~ in --file (PowerShell passes it through literally)', () => {
+  assert.equal(parseArgs(['op:create', '--file', '~/.opflow/t.json']).file, join(homedir(), '.opflow/t.json'));
+  assert.equal(parseArgs(['op:create', '--file', '~\\.opflow\\t.json']).file, join(homedir(), '.opflow\\t.json'));
+  assert.equal(parseArgs(['op:create', '--file', 'a/~/t.json']).file, 'a/~/t.json');
 });
