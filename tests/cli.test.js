@@ -61,7 +61,8 @@ const sprintIds = { typeId: 7, assigneeId: 3, versionId: 2165 };
 const backlogIds = { typeId: 7, assigneeId: 3, versionId: 2167 };
 
 test('parseArgs reads command, flags, file and ids', () => {
-  assert.deepEqual(parseArgs(['op:done', '5', '6', '--yes']), { command: 'op:done', yes: true, json: false, file: null, ids: ['5', '6'] });
+  assert.deepEqual(parseArgs(['op:done', '5', '6', '--yes']), { command: 'op:done', yes: true, json: false, file: null, date: null, ids: ['5', '6'] });
+  assert.equal(parseArgs(['reconcile:candidates', '--date', '2026-10-15']).date, '2026-10-15');
   assert.equal(parseArgs(['op:create', '--file', 'x.json']).file, 'x.json');
   assert.throws(() => parseArgs(['check', '--force']), { message: 'Unknown flag: --force' });
 });

@@ -25,6 +25,9 @@ export function cliDeps(config) {
     log: (line) => console.log(line),
     today: localDate(),
     backlog: config.op.backlog,
+    home,
+    project: config.op.project,
+    opFor: (project) => createOpenProjectClient({ ...config.op, project }),
   };
 }
 

@@ -1,12 +1,13 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { DONE_STATUS, TYPE_NAME, currentSprint, findByName } from './openproject.js';
-import { HOURS_PER_POINT, allocate, durationToHours, validateTasks, workPackageCreateBody } from './payloads.js';
+import { validateTasks, workPackageCreateBody } from './payloads.js';
+import { reconcileCandidates } from './reconcile.js';
+import { SPRINT_POINTS, planSprint } from './sprint.js';
 import { formatGroups, groupByStatus, summarize } from './report.js';
 import { validateMessage } from './talk.js';
 
-export { DONE_STATUS, TYPE_NAME };
-export const SPRINT_POINTS = 60;
+export { DONE_STATUS, SPRINT_POINTS, TYPE_NAME };
 
 export const USAGE = `Usage: opflow <command> [options]
 
@@ -17,6 +18,8 @@ Commands:
   op:create --file tasks.json    Create User Stories in the current sprint or backlog (dry run unless --yes)
   op:done <id...>                Set work packages to Closed (dry run unless --yes)
   op:today [--json]              List your work packages updated today
+  reconcile:candidates [--date YYYY-MM-DD]
+                                 Today's journal items with candidate tickets, per mapped project (JSON)
   talk:post --file report.md     Post a message to the Talk room (dry run unless --yes)
   journal:note --kind feature|bug --status done|partial --text "..." [--ticket <id>] [--commit <hash>] [--session <id>]
                                  Record a feature or bug fix in this project's journal (local only)
@@ -32,12 +35,13 @@ function expandHome(path) {
 
 export function parseArgs(argv) {
   const [command, ...rest] = argv;
-  const opts = { command, yes: false, json: false, file: null, ids: [] };
+  const opts = { command, yes: false, json: false, file: null, date: null, ids: [] };
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
     if (arg === '--yes') opts.yes = true;
     else if (arg === '--json') opts.json = true;
     else if (arg === '--file') opts.file = expandHome(rest[++i] ?? null);
+    else if (arg === '--date') opts.date = rest[++i] ?? null;
     else if (arg.startsWith('--')) throw new Error(`Unknown flag: ${arg}`);
     else opts.ids.push(arg);
   }
@@ -84,26 +88,6 @@ async function check(_opts, { op, talk, log, backlog }) {
   }
   await step('Talk room', async () => (await talk.roomInfo()).displayName);
   return ok ? 0 : 1;
-}
-
-async function planSprint(tasks, { op, backlog: backlogName }) {
-  const versions = await op.listVersions();
-  const sprint = currentSprint(versions);
-  const backlog = backlogName ? findByName(versions, backlogName, 'Version') : null;
-  const existingHours = (await op.listMyOpenInVersion(sprint.id)).reduce((sum, wp) => sum + durationToHours(wp.estimatedTime), 0);
-  // round to whole minutes first so float noise in summed durations can't add a point
-  const existing = Math.ceil(Math.round(existingHours * 60) / 60 / HOURS_PER_POINT);
-  const split = allocate(tasks, Math.max(0, SPRINT_POINTS - existing));
-  const inSprint = new Set(split.sprint);
-  return {
-    sprint,
-    backlog,
-    existing,
-    split,
-    // Without a backlog, stories that don't fit are left out rather than created somewhere unexpected.
-    items: tasks.map((task) => ({ task, version: inSprint.has(task) ? sprint : backlog })).filter((item) => item.version),
-    skipped: backlog ? [] : split.backlog,
-  };
 }
 
 function planSummary({ sprint, backlog, existing, split }) {
@@ -205,11 +189,24 @@ async function talkPost(opts, { talk, readFile, log, removeFile }) {
   return 0;
 }
 
+function requireDate(opts, today) {
+  const date = opts.date ?? today;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('--date must be YYYY-MM-DD');
+  return date;
+}
+
+async function reconcileCandidatesCmd(opts, { home, today, opFor, project, backlog, log }) {
+  const result = await reconcileCandidates({ home, date: requireDate(opts, today), opFor, configuredProject: project, backlog });
+  log(JSON.stringify(result, null, 2));
+  return 0;
+}
+
 const COMMANDS = {
   check,
   'op:create': opCreate,
   'op:done': opDone,
   'op:today': opToday,
+  'reconcile:candidates': reconcileCandidatesCmd,
   'talk:post': talkPost,
 };
 
