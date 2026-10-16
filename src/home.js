@@ -12,6 +12,7 @@ export function opflowHome(env = process.env) {
 export const envFile = (home) => join(home, '.env');
 export const preferencesFile = (home) => join(home, 'preferences.json');
 export const reportTemplateFile = (home) => join(home, 'report-template.md');
+export const projectsFile = (home) => join(home, 'projects.json');
 
 export function loadUserConfig(home, env = process.env) {
   if (!existsSync(envFile(home)) && !env.OP_URL) throw new Error(NOT_SET_UP);
