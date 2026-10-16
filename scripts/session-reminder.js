@@ -1,9 +1,6 @@
-// SessionStart hook: reminds Claude that the opflow skills exist without ever running them.
-import { existsSync } from 'node:fs';
-import { envFile, opflowHome } from '../src/home.js';
-import { isMainModule } from '../src/main-module.js';
-
-const NEVER = 'Never run opflow commands or the opflow CLI unless the user types the command themselves.';
+// The opflow reminder that the SessionStart journal hook (journal-hook.js) adds on startup.
+const NEVER =
+  'Never run opflow commands or the opflow CLI unless the user types the command themselves, except journal:note, which you run yourself as the opflow journal context describes.';
 
 export function reminderText({ configured }) {
   if (!configured) {
@@ -15,12 +12,4 @@ export function reminderText({ configured }) {
     'If the user later says they are done for the day, you may remind them of /opflow:done-tasks and /opflow:report-day once more.',
     NEVER,
   ].join(' ');
-}
-
-export function reminderOutput({ configured }) {
-  return JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: reminderText({ configured }) } });
-}
-
-if (isMainModule(process.argv[1], import.meta.url)) {
-  console.log(reminderOutput({ configured: existsSync(envFile(opflowHome())) }));
 }

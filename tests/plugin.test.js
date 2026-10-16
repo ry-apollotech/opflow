@@ -18,11 +18,14 @@ test('plugin.json and marketplace.json describe the opflow plugin', () => {
   assert.deepEqual(market.plugins.map((p) => [p.name, p.source]), [['opflow', './']]);
 });
 
-test('hooks.json runs the existing session reminder on startup', () => {
-  const entry = JSON.parse(read('hooks/hooks.json')).hooks.SessionStart[0];
-  assert.equal(entry.matcher, 'startup');
-  assert.equal(entry.hooks[0].command, 'node "${CLAUDE_PLUGIN_ROOT}/scripts/session-reminder.js"');
-  assert.ok(existsSync(join(ROOT, 'scripts/session-reminder.js')));
+test('hooks.json runs the journal hook on every session start, Bash/PowerShell use and session end', () => {
+  const { hooks } = JSON.parse(read('hooks/hooks.json'));
+  const command = 'node "${CLAUDE_PLUGIN_ROOT}/scripts/journal-hook.js"';
+  assert.deepEqual(Object.keys(hooks).sort(), ['PostToolUse', 'SessionEnd', 'SessionStart']);
+  assert.equal(hooks.SessionStart[0].matcher, undefined, 'all SessionStart sources');
+  assert.equal(hooks.PostToolUse[0].matcher, 'Bash|PowerShell');
+  for (const name of Object.keys(hooks)) assert.equal(hooks[name][0].hooks[0].command, command, name);
+  assert.ok(existsSync(join(ROOT, 'scripts/journal-hook.js')));
 });
 
 test('skills: user-only, quoted plugin-root CLI path, no install placeholders', () => {

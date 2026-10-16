@@ -1,10 +1,16 @@
 {
   "hooks": {
     "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/journal-hook.js\"" }] }
+    ],
+    "PostToolUse": [
       {
-        "matcher": "startup",
-        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/session-reminder.js\"" }]
+        "matcher": "Bash|PowerShell",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/journal-hook.js\"" }]
       }
+    ],
+    "SessionEnd": [
+      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/journal-hook.js\"" }] }
     ]
   }
 }
