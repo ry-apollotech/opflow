@@ -170,11 +170,16 @@ If you decline, add them yourself:
 
 With these, Claude Code asks you again before **any** `opflow` write command runs, whichever shell tool it uses.
 
-### 3.6 Session reminder
+### 3.6 Session reminder and journal hook
 
-The plugin includes a `SessionStart` hook, so there's nothing to set up. At the start of each new session, Claude
-mentions the opflow commands once, in one line. Until you've run setup, it only mentions `/opflow:setup`. The hook
-only gives Claude that text; it never runs anything against OpenProject or Talk.
+The plugin includes one hook script, `scripts/journal-hook.js`, so there's nothing to set up. It runs when a session
+starts, after Bash/PowerShell commands, and when a session ends:
+
+- At the start of each new session, Claude mentions the opflow commands once, in one line (only `/opflow:setup`
+  until you've run setup), and gets the project's journal context (see the README's **Session journal**).
+- After a command that commits, it records the new commit in the journal.
+- It never runs anything against OpenProject or Talk, and never fails a session: errors are written to
+  `~/.opflow/journal/errors.log`.
 
 ---
 
@@ -330,9 +335,9 @@ names and ids only.
 
 ```
 .claude-plugin/       plugin.json + marketplace.json (the repo is its own marketplace)
-hooks/hooks.json      SessionStart reminder hook
+hooks/hooks.json      SessionStart / PostToolUse / SessionEnd → scripts/journal-hook.js
 bin/opflow.js         CLI entry point (loads ~/.opflow/.env, wires the API clients; setup, plan:rules)
-src/cli.js            command parsing and the five commands
+src/cli.js            command parsing and the OpenProject and Talk commands
 src/config.js         .env loading and validation
 src/http.js           shared JSON HTTP helper + readable error messages
 src/payloads.js       OpenProject request bodies, filters, tasks.json validation
@@ -343,7 +348,12 @@ src/home.js           ~/.opflow location and config loading
 src/setup.js          interactive setup
 src/preferences.js    ticket-breakdown questions and rules
 src/main-module.js    "is this file being run directly" check
-scripts/session-reminder.js  the reminder text for the SessionStart hook
+src/project.js        repo root detection and ~/.opflow/projects.json
+src/journal.js        journal files: append, read, collapse notes
+src/journal-view.js   journal:show Markdown and the session-start context
+src/journal-cli.js    journal:note and journal:show
+scripts/journal-hook.js      the journal hook (session start/end, commits, context)
+scripts/session-reminder.js  the reminder text the hook adds on startup
 skills/               plugin skills (setup, plan-feature, done-tasks, report-day)
 report-template.example.md  default /opflow:report-day format
 tests/                node:test unit tests (APIs are mocked — no network)

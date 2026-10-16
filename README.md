@@ -57,6 +57,13 @@ At the end, setup asks whether Claude Code should confirm with you before every 
 
 If you say no, or your settings file can't be read, setup prints the rules for you to add yourself.
 
+Setup then asks whether Claude may record journal notes without asking each time. Say **Y** to add these to
+`permissions.allow` (they only allow `journal:note`, which writes to your local journal and nowhere else):
+
+```json
+"Bash(node *opflow.js* journal:note*)", "PowerShell(node *opflow.js* journal:note*)"
+```
+
 ## Daily use (in any project, in Claude Code)
 
 The commands only run when you type them. Claude never starts them on its own while you're working on something
@@ -66,6 +73,21 @@ else. At the start of each new session, Claude mentions them once, in one line.
   points and shows where each one goes. Approve, and they're created and assigned to you.
 - `/opflow:done-tasks`: review which stories are finished. Approve, and they're set to Closed.
 - `/opflow:report-day`: review the drafted daily report. Approve, and it's posted to your Talk room.
+
+### Session journal
+
+opflow keeps a local journal of the **features you built and bugs you fixed**, per project and per day, in
+`~/.opflow/journal/<project>/<date>.jsonl`. It needs no setup and never sends anything anywhere.
+
+- **Automatic:** a hook records when each Claude Code session starts and ends, and every commit made in it.
+- **Claude's notes:** when a feature is finished (or partly built) or a bug is fixed, Claude records one line with
+  `journal:note`. A note is linked to the session's latest commit; work with no commit shows as "not committed".
+- **Context:** each new session in a project starts with what was recorded there today and anything left
+  unfinished on the last day you worked on it.
+- **See it:** `node "<plugin folder>/bin/opflow.js" journal:show [--project tdm] [--date 2026-10-16]`.
+
+Projects are identified by their git repo (worktrees count as the main repo); `~/.opflow/projects.json` maps each
+repo to its short name.
 
 ### How points and sprints work
 
@@ -154,6 +176,8 @@ node "<plugin folder>/bin/opflow.js" op:create --file tasks.json [--yes]
 node "<plugin folder>/bin/opflow.js" op:done <id...> [--yes]
 node "<plugin folder>/bin/opflow.js" op:today [--json]
 node "<plugin folder>/bin/opflow.js" talk:post --file report.md [--yes]
+node "<plugin folder>/bin/opflow.js" journal:note --kind feature|bug --status done|partial --text "..." [--ticket <id>] [--commit <hash>]
+node "<plugin folder>/bin/opflow.js" journal:show [--project <name>] [--date YYYY-MM-DD] [--json]
 ```
 
 Write commands are dry runs unless `--yes` is given. `/opflow:setup` shows the exact plugin folder path.

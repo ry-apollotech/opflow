@@ -19,6 +19,22 @@ export const FIELDS = [
 ];
 
 export const ASK_RULES = ['Bash(node *opflow.js*--yes*)', 'PowerShell(node *opflow.js*--yes*)'];
+export const ALLOW_RULES = ['Bash(node *opflow.js* journal:note*)', 'PowerShell(node *opflow.js* journal:note*)'];
+
+const RULE_SETS = [
+  {
+    list: 'ask',
+    rules: ASK_RULES,
+    question: (n, file) => `Make Claude Code ask you before every opflow write (adds ${n} rules to ${file})? [Y/n]: `,
+    present: 'Approval rules are already in your Claude Code settings.',
+  },
+  {
+    list: 'allow',
+    rules: ALLOW_RULES,
+    question: (n, file) => `Let Claude record journal notes without asking each time (adds ${n} rules to ${file})? [Y/n]: `,
+    present: 'Journal rules are already in your Claude Code settings.',
+  },
+];
 
 export const maskSecret = (value) => `****${value.length > 4 ? value.slice(-4) : ''}`;
 
@@ -89,12 +105,13 @@ async function promptFields(prompter, current, log) {
   return values;
 }
 
-function printRules(log) {
-  log('Add both of these to "permissions.ask" in ~/.claude/settings.json yourself:');
-  for (const rule of ASK_RULES) log(`  "${rule}"`);
+function printRules(log, { list, rules }) {
+  log(`Add both of these to "permissions.${list}" in ~/.claude/settings.json yourself:`);
+  for (const rule of rules) log(`  "${rule}"`);
 }
 
-// Adds ASK_RULES to Claude Code's permissions.ask after asking; never touches a file it can't parse.
+// Adds RULE_SETS to Claude Code's permissions after asking about each; writes once, keeps a backup of the
+// original, and never touches a file it can't parse.
 async function addApprovalRules(settingsFile, prompter, log) {
   let raw = null;
   try {
@@ -111,19 +128,27 @@ async function addApprovalRules(settingsFile, prompter, log) {
   log('');
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
     log(`Couldn't read ${settingsFile} as JSON, so it was left unchanged.`);
-    return printRules(log);
+    return RULE_SETS.forEach((set) => printRules(log, set));
   }
-  const ask = Array.isArray(settings.permissions?.ask) ? settings.permissions.ask : [];
-  const missing = ASK_RULES.filter((rule) => !ask.includes(rule));
-  if (!missing.length) return log('Approval rules are already in your Claude Code settings.');
-  if (!(await confirm(prompter, `Make Claude Code ask you before every opflow write (adds ${missing.length} rules to ${settingsFile})? [Y/n]: `))) {
-    return printRules(log);
+  let next = settings;
+  for (const set of RULE_SETS) {
+    const current = Array.isArray(next.permissions?.[set.list]) ? next.permissions[set.list] : [];
+    const missing = set.rules.filter((rule) => !current.includes(rule));
+    if (!missing.length) {
+      log(set.present);
+      continue;
+    }
+    if (!(await confirm(prompter, set.question(missing.length, settingsFile)))) {
+      printRules(log, set);
+      continue;
+    }
+    next = { ...next, permissions: { ...next.permissions, [set.list]: [...current, ...missing] } };
   }
+  if (next === settings) return;
   if (raw !== null) await writeFile(`${settingsFile}.opflow-backup`, raw);
   await mkdir(dirname(settingsFile), { recursive: true });
-  const next = { ...settings, permissions: { ...settings.permissions, ask: [...ask, ...missing] } };
   await writeFile(settingsFile, `${JSON.stringify(next, null, 2)}\n`);
-  log(`Added the approval rules to ${settingsFile}${raw !== null ? ` (backup: ${settingsFile}.opflow-backup)` : ''}.`);
+  log(`Updated ${settingsFile}${raw !== null ? ` (backup: ${settingsFile}.opflow-backup)` : ''}.`);
 }
 
 export async function runSetup({ home, root, prompter, log, runCheck, settingsFile, keepPreferences = false, migrateFrom = null }) {

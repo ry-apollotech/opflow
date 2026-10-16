@@ -6,7 +6,7 @@ import { PassThrough } from 'node:stream';
 import { join } from 'node:path';
 import { parseEnv } from '../src/config.js';
 import { DEFAULTS } from '../src/preferences.js';
-import { ASK_RULES, FIELDS, copyIfMissing, createTerminalPrompter, formatEnv, maskSecret, runSetup } from '../src/setup.js';
+import { ALLOW_RULES, ASK_RULES, FIELDS, copyIfMissing, createTerminalPrompter, formatEnv, maskSecret, runSetup } from '../src/setup.js';
 
 const answers = {
   OP_URL: 'https://op.example.com/', OP_API_KEY: 'op-secret-1234', OP_PROJECT: 'iconnect',
@@ -154,22 +154,24 @@ test('setup adds the approval rules to Claude settings, keeping everything else 
   const { home, root, settingsFile } = dirs();
   const before = { model: 'x', permissions: { allow: ['Read'], ask: ['Other(y)'] } };
   writeFileSync(settingsFile, JSON.stringify(before, null, 2));
-  const prompter = fakePrompter([...full(), '']);
+  const prompter = fakePrompter([...full(), '', '']);
   await run({ home, root, prompter });
-  assert.ok(prompter.prompts.at(-1).startsWith('Make Claude Code ask you before every opflow write'), prompter.prompts.at(-1));
+  assert.ok(prompter.prompts.at(-2).startsWith('Make Claude Code ask you before every opflow write'), prompter.prompts.at(-2));
+  assert.ok(prompter.prompts.at(-1).startsWith('Let Claude record journal notes without asking'), prompter.prompts.at(-1));
   const after = JSON.parse(readFileSync(settingsFile, 'utf8'));
-  assert.deepEqual(after, { model: 'x', permissions: { allow: ['Read'], ask: ['Other(y)', ...ASK_RULES] } });
+  assert.deepEqual(after, { model: 'x', permissions: { allow: ['Read', ...ALLOW_RULES], ask: ['Other(y)', ...ASK_RULES] } });
   assert.deepEqual(JSON.parse(readFileSync(`${settingsFile}.opflow-backup`, 'utf8')), before);
 });
 
 test('approval rules: created when settings are missing, never duplicated, no question once present', async () => {
   const { home, root, settingsFile } = dirs();
   await run({ home, root, prompter: fakePrompter(full()) });
-  assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')), { permissions: { ask: ASK_RULES } });
+  assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')), { permissions: { ask: ASK_RULES, allow: ALLOW_RULES } });
   const again = fakePrompter([]);
   await run({ home, root, prompter: again, keepPreferences: true });
   assert.equal(again.prompts.length, FIELDS.length);
   assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')).permissions.ask, ASK_RULES);
+  assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')).permissions.allow, ALLOW_RULES);
 });
 
 test('approval rules: "n" or unreadable settings leave the file alone and print the rules', async () => {
@@ -177,8 +179,15 @@ test('approval rules: "n" or unreadable settings leave the file alone and print 
     const { home, root, settingsFile } = dirs();
     writeFileSync(settingsFile, content);
     const lines = [];
-    await run({ home, root, log: (l) => lines.push(l), prompter: fakePrompter([...full(), answer]) });
+    await run({ home, root, log: (l) => lines.push(l), prompter: fakePrompter([...full(), answer, answer]) });
     assert.equal(readFileSync(settingsFile, 'utf8'), content);
     for (const rule of ASK_RULES) assert.ok(lines.some((l) => l.includes(rule)), `${content}: ${rule}`);
+    for (const rule of ALLOW_RULES) assert.ok(lines.some((l) => l.includes(rule)), `${content}: ${rule}`);
   }
+});
+
+test('journal rule: yes to ask rules, no to journal rule writes only the ask rules', async () => {
+  const { home, root, settingsFile } = dirs();
+  await run({ home, root, prompter: fakePrompter([...full(), '', 'n']) });
+  assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')), { permissions: { ask: ASK_RULES } });
 });
