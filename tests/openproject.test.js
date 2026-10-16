@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createOpenProjectClient, currentSprint, findByName } from '../src/openproject.js';
 import { basicAuth } from '../src/http.js';
-import { myOpenInVersionFilters, todayFilters, todayRangeFilters } from '../src/payloads.js';
+import { myOpenInVersionFilters, searchFilters, todayFilters, todayRangeFilters } from '../src/payloads.js';
 import { mockFetch } from './helpers.js';
 
 const cfg = { url: 'https://op.test', apiKey: 'secret', project: 'demo' };
@@ -132,4 +132,37 @@ test('listMyOpenInVersion filters my open work packages in that version', async 
   const url = new URL(f.calls[0].url);
   assert.equal(url.pathname, '/api/v3/projects/demo/work_packages');
   assert.equal(url.searchParams.get('filters'), myOpenInVersionFilters(2165));
+});
+
+test('searchWorkPackages uses the search filter over all statuses, 10 results', async () => {
+  const f = mockFetch([{ json: list([{ id: 9, subject: 'CSV export' }]) }]);
+  const found = await createOpenProjectClient(cfg, f).searchWorkPackages('csv export');
+  assert.deepEqual(found.map((wp) => wp.id), [9]);
+  const url = new URL(f.calls[0].url);
+  assert.equal(url.pathname, '/api/v3/projects/demo/work_packages');
+  assert.equal(url.searchParams.get('pageSize'), '10');
+  assert.equal(url.searchParams.get('filters'), searchFilters('csv export'));
+  assert.deepEqual(JSON.parse(searchFilters('csv export')), [{ search: { operator: '**', values: ['csv export'] } }]);
+});
+
+test('searchWorkPackages: a server without the search filter (400) gives no matches; other errors throw', async () => {
+  const op400 = createOpenProjectClient(cfg, mockFetch([{ status: 400, json: { message: 'Filter search does not exist.' } }]));
+  assert.deepEqual(await op400.searchWorkPackages('x'), []);
+  const op500 = createOpenProjectClient(cfg, mockFetch([{ status: 500, json: { message: 'boom' } }]));
+  await assert.rejects(op500.searchWorkPackages('x'), /500/);
+});
+
+test('addComment POSTs a Markdown comment to the activities', async () => {
+  const f = mockFetch([{ status: 201, json: { id: 77 } }]);
+  await createOpenProjectClient(cfg, f).addComment(5, 'Progress: export works for invoices');
+  assert.equal(f.calls[0].method, 'POST');
+  assert.equal(f.calls[0].url, 'https://op.test/api/v3/work_packages/5/activities');
+  assert.deepEqual(f.calls[0].body, { comment: { raw: 'Progress: export works for invoices' } });
+});
+
+test('findType returns the type or null', async () => {
+  const f = mockFetch([{ json: list([{ id: 7, name: 'User Story' }]) }, { json: list([{ id: 7, name: 'User Story' }, { id: 8, name: 'Bug' }]) }]);
+  const op = createOpenProjectClient(cfg, f);
+  assert.equal(await op.findType('Bug'), null);
+  assert.equal((await op.findType('bug')).id, 8);
 });

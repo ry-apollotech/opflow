@@ -59,6 +59,13 @@ export function myOpenInVersionFilters(versionId) {
   ]);
 }
 
+// OpenProject's full-text filter; explicit filters replace the default "open only" status filter.
+export function searchFilters(text) {
+  return JSON.stringify([{ search: { operator: '**', values: [text] } }]);
+}
+
+export const commentBody = (text) => ({ comment: { raw: text } });
+
 export function localDate(d = new Date()) {
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;

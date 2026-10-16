@@ -1,5 +1,8 @@
 import { basicAuth, requestJson } from './http.js';
-import { closeBody, myOpenInVersionFilters, todayFilters, todayRangeFilters, workPackageCreateBody } from './payloads.js';
+import { closeBody, commentBody, myOpenInVersionFilters, searchFilters, todayFilters, todayRangeFilters, workPackageCreateBody } from './payloads.js';
+
+export const TYPE_NAME = 'User Story';
+export const DONE_STATUS = 'Closed';
 
 export function findByName(elements, name, kind) {
   const hit = elements.find((el) => el.name.toLowerCase() === name.toLowerCase());
@@ -21,8 +24,8 @@ export function createOpenProjectClient({ url, apiKey, project }, fetchFn = fetc
   const call = (method, path, body) => requestJson(fetchFn, { method, url: url + path, headers, body });
   const projectPath = `/api/v3/projects/${encodeURIComponent(project)}`;
   const wpPath = (id) => `/api/v3/work_packages/${encodeURIComponent(id)}`;
-  const listWorkPackages = async (filters) => {
-    const res = await call('GET', `${projectPath}/work_packages?filters=${encodeURIComponent(filters)}&pageSize=100`);
+  const listWorkPackages = async (filters, pageSize = 100) => {
+    const res = await call('GET', `${projectPath}/work_packages?filters=${encodeURIComponent(filters)}&pageSize=${pageSize}`);
     return res._embedded.elements;
   };
 
@@ -39,6 +42,23 @@ export function createOpenProjectClient({ url, apiKey, project }, fetchFn = fetc
       const res = await call('GET', '/api/v3/statuses');
       return findByName(res._embedded.elements, name, 'Status');
     },
+
+    async findType(name) {
+      const res = await call('GET', `${projectPath}/types`);
+      return res._embedded.elements.find((el) => el.name.toLowerCase() === name.toLowerCase()) ?? null;
+    },
+
+    // Servers without the "search" filter answer 400; that just means no search matches.
+    async searchWorkPackages(text) {
+      try {
+        return await listWorkPackages(searchFilters(text), 10);
+      } catch (err) {
+        if (err.status !== 400) throw err;
+        return [];
+      }
+    },
+
+    addComment: (id, text) => call('POST', `${wpPath(id)}/activities`, commentBody(text)),
 
     async listVersions() {
       const res = await call('GET', `${projectPath}/versions?pageSize=500`);

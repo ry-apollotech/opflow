@@ -1,12 +1,11 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { currentSprint, findByName } from './openproject.js';
+import { DONE_STATUS, TYPE_NAME, currentSprint, findByName } from './openproject.js';
 import { HOURS_PER_POINT, allocate, durationToHours, validateTasks, workPackageCreateBody } from './payloads.js';
 import { formatGroups, groupByStatus, summarize } from './report.js';
 import { validateMessage } from './talk.js';
 
-export const TYPE_NAME = 'User Story';
-export const DONE_STATUS = 'Closed';
+export { DONE_STATUS, TYPE_NAME };
 export const SPRINT_POINTS = 60;
 
 export const USAGE = `Usage: opflow <command> [options]
