@@ -57,12 +57,16 @@ At the end, setup asks whether Claude Code should confirm with you before every 
 
 If you say no, or your settings file can't be read, setup prints the rules for you to add yourself.
 
-Setup then asks whether Claude may record journal notes without asking each time. Say **Y** to add these to
-`permissions.allow` (they only allow `journal:note`, which writes to your local journal and nowhere else):
+Setup then asks whether Claude may record journal notes without asking each time. Say **Y** to add two rules to
+`permissions.allow`. They name this install's exact CLI path, so they only match `journal:note`, which writes to your
+local journal and nowhere else:
 
 ```json
-"Bash(node *opflow.js* journal:note*)", "PowerShell(node *opflow.js* journal:note*)"
+"Bash(node \"<plugin folder>/bin/opflow.js\" journal:note *)", "PowerShell(node \"<plugin folder>/bin/opflow.js\" journal:note *)"
 ```
+
+A plugin update changes the plugin folder, so Claude asks again for journal notes until you re-run `/opflow:setup`
+(add `--keep-preferences` to skip the ticket questions).
 
 ## Daily use (in any project, in Claude Code)
 

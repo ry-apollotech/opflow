@@ -12,14 +12,19 @@ import { identifyProject, runGit, toPosix } from '../src/project.js';
 import { reminderText } from './session-reminder.js';
 
 export const COMMIT_COMMAND = /\bgit\b[\s\S]*\bcommit\b/;
+// HEAD's latest reflog entry when it was moved by a commit: "commit: …", "commit (amend): …", "commit (merge): …".
+const COMMIT_REFLOG = /^commit( \([a-z]+\))?:/;
+
+// HEAD, branch and log come from the session's own checkout (a worktree has its own), not the project root.
+const checkout = (input, project) => input.cwd ?? project.root;
 
 const sessionStartOutput = (text) =>
   JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: text } });
 
 function onSessionStart(input, { home, today, configured, pluginRoot, git }, project, session) {
   const { events } = readEvents(home, project.slug, today);
-  const head = git(['rev-parse', 'HEAD'], project.root);
-  const branch = git(['rev-parse', '--abbrev-ref', 'HEAD'], project.root);
+  const head = git(['rev-parse', 'HEAD'], checkout(input, project));
+  const branch = git(['rev-parse', '--abbrev-ref', 'HEAD'], checkout(input, project));
   const trigger = input.source ?? 'startup';
   appendEvent(home, project.slug, today, {
     session, source: 'hook', kind: 'session_start', trigger, cwd: toPosix(input.cwd ?? project.root),
@@ -37,19 +42,20 @@ function onSessionStart(input, { home, today, configured, pluginRoot, git }, pro
   return sessionStartOutput(trigger === 'startup' ? `${reminderText({ configured })}\n\n${context}` : context);
 }
 
-// Records HEAD after a command that looks like a commit, only if HEAD moved since this session last saw it.
-function onCommand({ home, today, git }, project, session) {
-  const hash = git(['rev-parse', 'HEAD'], project.root);
-  if (!hash) return '';
+// Records HEAD after a command that looks like a commit, only if a commit moved HEAD since this session last saw it.
+function onCommand(input, { home, today, git }, project, session) {
+  const cwd = checkout(input, project);
+  const hash = git(['rev-parse', 'HEAD'], cwd);
+  if (!hash || !COMMIT_REFLOG.test(git(['reflog', '-1', '--format=%gs'], cwd) ?? '')) return '';
   const { events } = readEvents(home, project.slug, today);
   if (knownHead(events, session) === hash || events.some((e) => e.kind === 'commit' && e.hash === hash)) return '';
-  const subject = git(['log', '-1', '--format=%s'], project.root) ?? '';
+  const subject = git(['log', '-1', '--format=%s'], cwd) ?? '';
   appendEvent(home, project.slug, today, { session, source: 'hook', kind: 'commit', hash, subject });
   return '';
 }
 
 function onSessionEnd(input, { home, today, git }, project, session) {
-  const head = git(['rev-parse', 'HEAD'], project.root);
+  const head = git(['rev-parse', 'HEAD'], checkout(input, project));
   appendEvent(home, project.slug, today, { session, source: 'hook', kind: 'session_end', reason: input.reason ?? 'other', ...(head ? { head } : {}) });
   return '';
 }
@@ -62,7 +68,7 @@ export function handleHook(input, deps) {
   const project = identifyProject(ctx.home, input.cwd ?? process.cwd(), ctx.git);
   const session = input.session_id ?? 'unknown';
   if (event === 'SessionStart') return onSessionStart(input, ctx, project, session);
-  if (event === 'PostToolUse') return onCommand(ctx, project, session);
+  if (event === 'PostToolUse') return onCommand(input, ctx, project, session);
   return onSessionEnd(input, ctx, project, session);
 }
 

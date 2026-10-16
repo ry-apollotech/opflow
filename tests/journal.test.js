@@ -104,3 +104,10 @@ test('session helpers', () => {
   assert.deepEqual(sessionsWithoutEnd(events, 's9'), ['s1', 's2']);
   assert.deepEqual(sessionsWithoutEnd(events, 's1'), ['s2']);
 });
+
+test('collapseItems: a ticketed note and a later untagged note with the same text are one item', () => {
+  const items = collapseItems([note({ ticket: '12', text: 'Export', status: 'partial' }), note({ text: 'export', status: 'done' })]);
+  assert.equal(items.length, 1);
+  assert.deepEqual([items[0].status, items[0].ticket], ['done', '12']);
+  assert.equal(collapseItems([note({ ticket: '1', text: 'X' }), note({ ticket: '2', text: 'X' })]).length, 2);
+});

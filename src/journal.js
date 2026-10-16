@@ -51,19 +51,28 @@ export const listDates = (home, slug) =>
 export const listSlugs = (home) =>
   listDir(journalDir(home)).filter((f) => f.isDirectory()).map((f) => f.name).sort();
 
-const itemKey = (e) => (e.ticket ? `ticket:${e.ticket}` : `${e.kind}:${e.text.replace(/\s+/g, ' ').trim().toLowerCase()}`);
+const normText = (text) => text.replace(/\s+/g, ' ').trim().toLowerCase();
 
-// One entry per feature/bug: the latest note wins (moved to the end), keeping an earlier commit if it has none.
+// Same item: same ticket, or (unless both have different tickets) same kind and text.
+function sameItem(a, b) {
+  if (a.ticket && b.ticket) return a.ticket === b.ticket;
+  return a.kind === b.kind && normText(a.text) === normText(b.text);
+}
+
+// One entry per feature/bug: the latest note wins (moved to the end), keeping an earlier commit or ticket if it has none.
 export function collapseItems(events) {
-  const items = new Map();
+  const items = [];
   for (const e of events) {
     if (!NOTE_KINDS.includes(e.kind) || typeof e.text !== 'string') continue;
-    const key = itemKey(e);
-    const before = items.get(key);
-    items.delete(key);
-    items.set(key, before?.commit && !e.commit ? { ...e, commit: before.commit } : e);
+    const index = items.findIndex((item) => sameItem(item, e));
+    const before = index === -1 ? null : items.splice(index, 1)[0];
+    items.push({
+      ...e,
+      ...(before?.commit && !e.commit ? { commit: before.commit } : {}),
+      ...(before?.ticket && !e.ticket ? { ticket: before.ticket } : {}),
+    });
   }
-  return [...items.values()];
+  return items;
 }
 
 export const latestSession = (events) => events.filter((e) => e.kind === 'session_start').at(-1)?.session ?? null;

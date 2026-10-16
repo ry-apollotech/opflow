@@ -6,7 +6,7 @@ import { PassThrough } from 'node:stream';
 import { join } from 'node:path';
 import { parseEnv } from '../src/config.js';
 import { DEFAULTS } from '../src/preferences.js';
-import { ALLOW_RULES, ASK_RULES, FIELDS, copyIfMissing, createTerminalPrompter, formatEnv, maskSecret, runSetup } from '../src/setup.js';
+import { ASK_RULES, allowRules, FIELDS, copyIfMissing, createTerminalPrompter, formatEnv, maskSecret, runSetup } from '../src/setup.js';
 
 const answers = {
   OP_URL: 'https://op.example.com/', OP_API_KEY: 'op-secret-1234', OP_PROJECT: 'iconnect',
@@ -159,19 +159,19 @@ test('setup adds the approval rules to Claude settings, keeping everything else 
   assert.ok(prompter.prompts.at(-2).startsWith('Make Claude Code ask you before every opflow write'), prompter.prompts.at(-2));
   assert.ok(prompter.prompts.at(-1).startsWith('Let Claude record journal notes without asking'), prompter.prompts.at(-1));
   const after = JSON.parse(readFileSync(settingsFile, 'utf8'));
-  assert.deepEqual(after, { model: 'x', permissions: { allow: ['Read', ...ALLOW_RULES], ask: ['Other(y)', ...ASK_RULES] } });
+  assert.deepEqual(after, { model: 'x', permissions: { allow: ['Read', ...allowRules(root)], ask: ['Other(y)', ...ASK_RULES] } });
   assert.deepEqual(JSON.parse(readFileSync(`${settingsFile}.opflow-backup`, 'utf8')), before);
 });
 
 test('approval rules: created when settings are missing, never duplicated, no question once present', async () => {
   const { home, root, settingsFile } = dirs();
   await run({ home, root, prompter: fakePrompter(full()) });
-  assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')), { permissions: { ask: ASK_RULES, allow: ALLOW_RULES } });
+  assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')), { permissions: { ask: ASK_RULES, allow: allowRules(root) } });
   const again = fakePrompter([]);
   await run({ home, root, prompter: again, keepPreferences: true });
   assert.equal(again.prompts.length, FIELDS.length);
   assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')).permissions.ask, ASK_RULES);
-  assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')).permissions.allow, ALLOW_RULES);
+  assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')).permissions.allow, allowRules(root));
 });
 
 test('approval rules: "n" or unreadable settings leave the file alone and print the rules', async () => {
@@ -182,7 +182,7 @@ test('approval rules: "n" or unreadable settings leave the file alone and print 
     await run({ home, root, log: (l) => lines.push(l), prompter: fakePrompter([...full(), answer, answer]) });
     assert.equal(readFileSync(settingsFile, 'utf8'), content);
     for (const rule of ASK_RULES) assert.ok(lines.some((l) => l.includes(rule)), `${content}: ${rule}`);
-    for (const rule of ALLOW_RULES) assert.ok(lines.some((l) => l.includes(rule)), `${content}: ${rule}`);
+    for (const rule of allowRules(root)) assert.ok(lines.some((l) => l.includes(rule)), `${content}: ${rule}`);
   }
 });
 
@@ -190,4 +190,11 @@ test('journal rule: yes to ask rules, no to journal rule writes only the ask rul
   const { home, root, settingsFile } = dirs();
   await run({ home, root, prompter: fakePrompter([...full(), '', 'n']) });
   assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')), { permissions: { ask: ASK_RULES } });
+});
+
+test('journal allow rules name the exact plugin CLI, quoted, as the session context writes it', () => {
+  assert.deepEqual(allowRules('C:\\plug\\opflow\\0.3.0\\'), [
+    'Bash(node "C:/plug/opflow/0.3.0/bin/opflow.js" journal:note *)',
+    'PowerShell(node "C:/plug/opflow/0.3.0/bin/opflow.js" journal:note *)',
+  ]);
 });

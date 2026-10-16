@@ -6,6 +6,7 @@ import { Writable } from 'node:stream';
 import { parseEnv } from './config.js';
 import { envFile, preferencesFile, reportTemplateFile } from './home.js';
 import { askPreferences, loadPreferences, savePreferences } from './preferences.js';
+import { toPosix } from './project.js';
 
 export const FIELDS = [
   { key: 'OP_URL', label: 'OpenProject URL', hint: 'Browser address bar, e.g. https://openproject.example.com' },
@@ -19,9 +20,14 @@ export const FIELDS = [
 ];
 
 export const ASK_RULES = ['Bash(node *opflow.js*--yes*)', 'PowerShell(node *opflow.js*--yes*)'];
-export const ALLOW_RULES = ['Bash(node *opflow.js* journal:note*)', 'PowerShell(node *opflow.js* journal:note*)'];
+// Anchored on this install's exact, quoted CLI path (the form the journal hook gives Claude), so the rule can't
+// match `node -e …` or another script. A plugin update moves the path: Claude then asks again until setup re-runs.
+export function allowRules(root) {
+  const cli = `node "${toPosix(root)}/bin/opflow.js" journal:note *`;
+  return [`Bash(${cli})`, `PowerShell(${cli})`];
+}
 
-const RULE_SETS = [
+const ruleSets = (root) => [
   {
     list: 'ask',
     rules: ASK_RULES,
@@ -30,7 +36,7 @@ const RULE_SETS = [
   },
   {
     list: 'allow',
-    rules: ALLOW_RULES,
+    rules: allowRules(root),
     question: (n, file) => `Let Claude record journal notes without asking each time (adds ${n} rules to ${file})? [Y/n]: `,
     present: 'Journal rules are already in your Claude Code settings.',
   },
@@ -110,9 +116,9 @@ function printRules(log, { list, rules }) {
   for (const rule of rules) log(`  "${rule}"`);
 }
 
-// Adds RULE_SETS to Claude Code's permissions after asking about each; writes once, keeps a backup of the
+// Adds the rule sets to Claude Code's permissions after asking about each; writes once, keeps a backup of the
 // original, and never touches a file it can't parse.
-async function addApprovalRules(settingsFile, prompter, log) {
+async function addApprovalRules(settingsFile, prompter, log, root) {
   let raw = null;
   try {
     raw = await readFile(settingsFile, 'utf8');
@@ -128,10 +134,10 @@ async function addApprovalRules(settingsFile, prompter, log) {
   log('');
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
     log(`Couldn't read ${settingsFile} as JSON, so it was left unchanged.`);
-    return RULE_SETS.forEach((set) => printRules(log, set));
+    return ruleSets(root).forEach((set) => printRules(log, set));
   }
   let next = settings;
-  for (const set of RULE_SETS) {
+  for (const set of ruleSets(root)) {
     const current = Array.isArray(next.permissions?.[set.list]) ? next.permissions[set.list] : [];
     const missing = set.rules.filter((rule) => !current.includes(rule));
     if (!missing.length) {
@@ -174,7 +180,7 @@ export async function runSetup({ home, root, prompter, log, runCheck, settingsFi
 
   log('\nChecking access (read-only):');
   const code = await runCheck();
-  await addApprovalRules(settingsFile, prompter, log);
+  await addApprovalRules(settingsFile, prompter, log, root);
   return code;
 }
 

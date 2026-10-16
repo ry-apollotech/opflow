@@ -128,3 +128,26 @@ test('script: never fails the session; logs errors; startup still gets the remin
   assert.equal(broken.status, 0);
   assert.equal(context(broken.stdout), reminderText({ configured: false }));
 });
+
+test('worktree: start reads the worktree branch, and commits made there are recorded', () => {
+  const s = setup();
+  const wt = join(s.repo, '..', 'wt');
+  gitIn(s.repo, 'worktree', 'add', '-q', wt, '-b', 'feat');
+  s.hook({ hook_event_name: 'SessionStart', source: 'startup', cwd: wt });
+  assert.equal(s.events()[0].branch, 'feat');
+  gitIn(wt, 'commit', '-q', '--allow-empty', '-m', 'feat: in worktree');
+  s.hook({ hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: 'git commit -m x' }, cwd: wt });
+  assert.deepEqual(s.events().filter((e) => e.kind === 'commit').map((e) => e.hash), [gitIn(wt, 'rev-parse', 'HEAD')]);
+});
+
+test('PostToolUse: HEAD moved by a merge or pull, not a commit, records nothing', () => {
+  const s = setup();
+  s.hook({ hook_event_name: 'SessionStart', source: 'startup' });
+  const main = gitIn(s.repo, 'rev-parse', '--abbrev-ref', 'HEAD');
+  gitIn(s.repo, 'checkout', '-q', '-b', 'side');
+  gitIn(s.repo, 'commit', '-q', '--allow-empty', '-m', 'teammate work');
+  gitIn(s.repo, 'checkout', '-q', main);
+  gitIn(s.repo, 'merge', '-q', '--ff-only', 'side');
+  s.hook({ hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: 'git log --grep commit' } });
+  assert.deepEqual(s.events().map((e) => e.kind), ['session_start']);
+});
