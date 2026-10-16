@@ -2,7 +2,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { DONE_STATUS, TYPE_NAME, currentSprint, findByName } from './openproject.js';
 import { validateTasks, workPackageCreateBody } from './payloads.js';
-import { reconcileCandidates } from './reconcile.js';
+import { reconcileApply, reconcileCandidates } from './reconcile.js';
 import { SPRINT_POINTS, planSprint } from './sprint.js';
 import { formatGroups, groupByStatus, summarize } from './report.js';
 import { validateMessage } from './talk.js';
@@ -20,6 +20,8 @@ Commands:
   op:today [--json]              List your work packages updated today
   reconcile:candidates [--date YYYY-MM-DD]
                                  Today's journal items with candidate tickets, per mapped project (JSON)
+  reconcile:apply --file reconcile.json
+                                 Close, comment on or create tickets for journal items (dry run unless --yes)
   talk:post --file report.md     Post a message to the Talk room (dry run unless --yes)
   journal:note --kind feature|bug --status done|partial --text "..." [--ticket <id>] [--commit <hash>] [--session <id>]
                                  Record a feature or bug fix in this project's journal (local only)
@@ -207,6 +209,7 @@ const COMMANDS = {
   'op:done': opDone,
   'op:today': opToday,
   'reconcile:candidates': reconcileCandidatesCmd,
+  'reconcile:apply': reconcileApply,
   'talk:post': talkPost,
 };
 
