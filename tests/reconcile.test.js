@@ -66,3 +66,11 @@ test('candidates: a day with no journal is empty', async () => {
     date: DAY, configuredProject: 'demo', projects: [], unmapped: [],
   });
 });
+
+test('candidates: work created but not yet closed comes back with its link', async () => {
+  const home = journalHome({ tdm: 'demo' });
+  appendEvent(home, 'tdm', DAY, noteEvent({ ts: 't1', commit: 'c'.repeat(40) }));
+  appendEvent(home, 'tdm', DAY, { session: 'S1', source: 'cli', kind: 'ticket_link', note: { ts: 't1', session: 'S1' }, ticket: '301', action: 'created', opProject: 'demo' });
+  const result = await reconcileCandidates({ home, date: DAY, configuredProject: 'demo', backlog: null, opFor: () => fakeOp() });
+  assert.deepEqual(result.projects[0].items.map((i) => [i.text, i.ticket, i.link]), [['Add CSV export', '301', { ticket: '301', action: 'created' }]]);
+});

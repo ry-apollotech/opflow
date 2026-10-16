@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { appendEvent, readEvents } from '../src/journal.js';
 import { reconcileApply, validatePlan } from '../src/reconcile.js';
-import { fakeOp, journalHome, noteEvent } from './helpers.js';
+import { fakeOp, journalHome, noteEvent, wp } from './helpers.js';
 
 const DAY = '2026-10-16';
 const C = 'c'.repeat(40);
@@ -50,8 +50,8 @@ test('dry run describes every action and writes nothing', async () => {
   assert.equal(s.output(), [
     'DRY RUN: nothing is changed. Re-run with --yes to apply.',
     'tdm (OpenProject demo):',
-    '  close #10 — Add CSV export (commit ccccccc)',
-    '  comment #11 — Refund rounding: Rounding fixed for refunds; receipts next.',
+    '  close #10 "WP 10" [In progress] — Add CSV export (commit ccccccc)',
+    '  comment #11 "WP 11" [In progress] — Refund rounding: Rounding fixed for refunds; receipts next.',
   ].join('\n'));
   assert.deepEqual(s.op.calls, []);
   assert.deepEqual(s.links(), []);
@@ -124,11 +124,37 @@ test('re-run after a partial failure skips what is linked and does not repeat it
   });
   const s = setup([closeT1, commentT2], { op });
   assert.equal(await s.apply(true), 1);
-  assert.match(s.output(), /FAILED comment #11 — Refund rounding: .*: POST -> 500: boom/);
+  assert.match(s.output(), /FAILED comment #11 "WP 11" \[In progress\] — Refund rounding: .*: POST -> 500: boom/);
   assert.deepEqual(s.removed, []);
   failComment = false;
   s.lines.length = 0;
   assert.equal(await s.apply(true), 0);
   assert.match(s.output(), /skip — Add CSV export: already linked to #10 \(closed\)/);
   assert.deepEqual(s.op.calls, [['close', 10, 12], ['comment', 11, 'Rounding fixed for refunds; receipts next.']]);
+});
+
+test('close/comment refuse a ticket from another project, before any write', async () => {
+  const op = fakeOp({ getWorkPackage: async (id) => wp(Number(id), { _links: { ...wp(1)._links, project: { href: '/api/v3/projects/99', title: 'Other team' } } }) });
+  const s = setup([commentT2, closeT1], { op });
+  await assert.rejects(s.apply(true), /Action 1 \(tdm\): #11 belongs to Other team, not demo/);
+  assert.deepEqual(op.calls, []);
+});
+
+test('a create whose close failed is closed, not re-created, on the next run', async () => {
+  let failClose = true;
+  const op = fakeOp({
+    closeWorkPackage: async (id, statusId) => {
+      if (failClose) throw new Error('PATCH -> 422: transition not allowed');
+      op.calls.push(['close', Number(id), statusId]);
+      return {};
+    },
+  });
+  const s = setup([createT1], { op });
+  assert.equal(await s.apply(true), 1);
+  failClose = false;
+  s.lines.length = 0;
+  assert.equal(await s.apply(true), 0);
+  assert.match(s.output(), /OK close #301 "WP 301" \[In progress\] — Add CSV export \(commit ccccccc\), created earlier/);
+  assert.deepEqual(op.calls, [['create', 'Add CSV export', { typeId: 7, assigneeId: 3, versionId: 2165 }], ['close', 301, 12]]);
+  assert.deepEqual(s.links().map((l) => [l.ticket, l.action]), [['301', 'created'], ['301', 'created-closed']]);
 });

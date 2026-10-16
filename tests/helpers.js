@@ -43,7 +43,7 @@ export function makeRepo(name = 'repo') {
 
 export const wp = (id, over = {}) => ({
   id, subject: `WP ${id}`, lockVersion: 1, description: { raw: `Desc ${id}` },
-  _links: { status: { title: 'In progress' }, type: { title: 'User Story' }, version: { title: 'Sprint 152' } },
+  _links: { status: { title: 'In progress' }, type: { title: 'User Story' }, version: { title: 'Sprint 152' }, project: { href: '/api/v3/projects/1', title: 'Demo' } },
   ...over,
 });
 
@@ -52,6 +52,7 @@ export function fakeOp(over = {}) {
   const op = {
     calls,
     me: async () => ({ id: 3, name: 'Ryan' }),
+    project: async () => ({ id: 1, identifier: 'demo', name: 'Demo' }),
     listVersions: async () => [{ id: 2165, name: 'Sprint 152', status: 'open' }, { id: 2167, name: 'Backlog: POS', status: 'open' }],
     listMyOpenInVersion: async (versionId) => (versionId === 2165 ? [wp(10)] : [wp(11)]),
     getWorkPackage: async (id) => wp(Number(id)),

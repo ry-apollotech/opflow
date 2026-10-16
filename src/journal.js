@@ -66,24 +66,29 @@ export function ticketLinks(events) {
 }
 
 // One entry per feature/bug: the latest note wins (moved to the end), keeping an earlier commit or ticket if it has
-// none. A note's ticket_link counts as its ticket; `link` is set only when the latest note itself is linked.
+// none. Notes group only by their own --ticket or text; a ticket_link adds its ticket to the item without merging
+// other notes into it, and `link` is set only when the latest note itself is linked.
 export function collapseItems(events) {
   const links = ticketLinks(events);
-  const items = [];
+  const groups = [];
   for (const e of events) {
     if (!NOTE_KINDS.includes(e.kind) || typeof e.text !== 'string') continue;
+    const index = groups.findIndex((g) => sameItem(g.key, e));
+    const before = index === -1 ? null : groups.splice(index, 1)[0];
     const link = links.get(noteRef(e));
-    const current = link && !e.ticket ? { ...e, ticket: link.ticket } : e;
-    const index = items.findIndex((item) => sameItem(item, current));
-    const before = index === -1 ? null : items.splice(index, 1)[0];
-    items.push({
-      ...current,
-      ...(before?.commit && !current.commit ? { commit: before.commit } : {}),
-      ...(before?.ticket && !current.ticket ? { ticket: before.ticket } : {}),
-      ...(link ? { link: { ticket: link.ticket, action: link.action } } : {}),
+    const ticket = e.ticket ?? link?.ticket ?? before?.item.ticket;
+    const commit = e.commit ?? before?.item.commit;
+    groups.push({
+      key: { kind: e.kind, text: e.text, ticket: e.ticket ?? before?.key.ticket },
+      item: {
+        ...e,
+        ...(commit ? { commit } : {}),
+        ...(ticket ? { ticket } : {}),
+        ...(link ? { link: { ticket: link.ticket, action: link.action } } : {}),
+      },
     });
   }
-  return items;
+  return groups.map((g) => g.item);
 }
 
 export const latestSession = (events) => events.filter((e) => e.kind === 'session_start').at(-1)?.session ?? null;

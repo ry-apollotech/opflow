@@ -127,3 +127,12 @@ test('collapseItems: a linked latest note is marked; a newer note keeps the tick
   assert.equal(later.length, 1);
   assert.deepEqual([later[0].status, later[0].ticket, later[0].link], ['done', '55', undefined]);
 });
+
+test('collapseItems: a link ticket does not merge different notes', () => {
+  const items = collapseItems([
+    note({ ts: 'a', status: 'partial', text: 'Add CSV export', ticket: '5' }),
+    note({ ts: 'b', status: 'done', text: 'Fix export encoding' }),
+    link({ note: { ts: 'b', session: 's1' }, ticket: '5' }),
+  ]);
+  assert.deepEqual(items.map((i) => [i.text, i.ticket, i.link?.ticket]), [['Add CSV export', '5', undefined], ['Fix export encoding', '5', '5']]);
+});

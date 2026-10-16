@@ -24,6 +24,7 @@ const noteItem = (item) => ({
   text: item.text,
   commit: item.commit ?? null,
   ticket: item.ticket ?? null,
+  link: item.link ?? null,
 });
 
 async function ticketIfExists(op, id) {
@@ -59,7 +60,7 @@ export async function reconcileCandidates({ home, date, opFor, configuredProject
   const projects = [];
   const unmapped = [];
   for (const slug of listSlugs(home)) {
-    const items = collapseItems(readEvents(home, slug, date).events).filter((item) => !item.link);
+    const items = collapseItems(readEvents(home, slug, date).events).filter((item) => !item.link || unfinishedCreate(item));
     if (!items.length) continue;
     const opProject = projectBySlug(home, slug)?.opProject ?? null;
     if (opProject === false) continue;
@@ -77,6 +78,9 @@ export async function reconcileCandidates({ home, date, opFor, configuredProject
 }
 
 const ACTIONS = ['close', 'comment', 'create'];
+
+// A ticket created for finished work whose close didn't go through: it still needs closing.
+const unfinishedCreate = (item) => item.link?.action === 'created' && item.status === 'done' && Boolean(item.commit);
 const NO_BACKLOG = 'not created (sprint is full, no backlog set)';
 
 export function validatePlan(value) {
@@ -104,6 +108,7 @@ export function validatePlan(value) {
   });
 }
 
+const base = ({ project, date, note }) => ({ project, date, note });
 const closes = (action) => action.action === 'close' || (action.action === 'create' && action.closed);
 
 // Checks one action against the journal as it is now. Throws on anything unsafe; returns a skip for linked notes.
@@ -117,24 +122,41 @@ function prepare(home, action, index, seen) {
   const item = collapseItems(readEvents(home, action.project, action.date).events)
     .find((i) => i.ts === action.note.ts && i.session === action.note.session);
   if (!item) throw new Error(`${label}: note not found, or a newer note replaced it; run reconcile:candidates again`);
-  if (item.link) return { action, item, opProject, skip: `already linked to #${item.link.ticket} (${item.link.action})` };
+  if (item.link) {
+    const finishCreate = unfinishedCreate(item) && closes(action) && (action.action === 'create' || action.ticket === item.link.ticket);
+    if (!finishCreate) return { action, item, opProject, label, skip: `already linked to #${item.link.ticket} (${item.link.action})` };
+    return { action: { ...base(action), action: 'close', ticket: item.link.ticket }, item, opProject, label, resumed: true };
+  }
   if (closes(action) && !(item.status === 'done' && item.commit)) {
     throw new Error(`${label}: only done work with a commit can close a ticket ("${item.text}" is ${item.status}${item.commit ? '' : ', not committed'})`);
   }
-  return { action, item, opProject };
+  return { action, item, opProject, label };
 }
 
 async function projectContext(cache, opProject, opFor) {
   if (!cache.has(opProject)) {
     cache.set(opProject, (async () => {
       const op = opFor(opProject);
-      const [me, story, bug, closed, versions] = await Promise.all([
-        op.me(), op.resolveType(TYPE_NAME), op.findType('Bug'), op.resolveStatus(DONE_STATUS), op.listVersions(),
+      const [me, project, story, bug, closed, versions] = await Promise.all([
+        op.me(), op.project(), op.resolveType(TYPE_NAME), op.findType('Bug'), op.resolveStatus(DONE_STATUS), op.listVersions(),
       ]);
-      return { op, me, types: { feature: story, bug: bug ?? story }, closedId: closed.id, sprint: currentSprint(versions) };
+      return { op, me, project, types: { feature: story, bug: bug ?? story }, closedId: closed.id, sprint: currentSprint(versions) };
     })());
   }
   return cache.get(opProject);
+}
+
+// Reads each close/comment ticket and refuses one outside the mapped project, before anything is written.
+async function checkTickets(prepared, cache, opFor) {
+  for (const p of prepared.filter((x) => !x.skip && x.action.action !== 'create')) {
+    const ctx = await projectContext(cache, p.opProject, opFor);
+    const wp = await ctx.op.getWorkPackage(p.action.ticket);
+    const href = wp._links?.project?.href;
+    if (href !== `/api/v3/projects/${ctx.project.id}`) {
+      throw new Error(`${p.label}: #${p.action.ticket} belongs to ${wp._links?.project?.title ?? 'another project'}, not ${p.opProject}`);
+    }
+    p.wp = wp;
+  }
 }
 
 // Version for each create: closed ones go in the current sprint; open ones are placed by points like op:create.
@@ -157,8 +179,9 @@ function describe(p, type, version) {
   const { action, item } = p;
   const evidence = item.commit ? ` (commit ${item.commit.slice(0, 7)})` : '';
   if (p.skip) return `skip — ${item.text}: ${p.skip}`;
-  if (action.action === 'close') return `close #${action.ticket} — ${item.text}${evidence}`;
-  if (action.action === 'comment') return `comment #${action.ticket} — ${item.text}: ${action.comment.replace(/\s+/g, ' ').slice(0, 80)}`;
+  const ticket = p.wp ? `#${action.ticket} "${p.wp.subject}" [${p.wp._links?.status?.title ?? 'Unknown'}]` : `#${action.ticket}`;
+  if (action.action === 'close') return `close ${ticket} — ${item.text}${evidence}${p.resumed ? ', created earlier' : ''}`;
+  if (action.action === 'comment') return `comment ${ticket} — ${item.text}: ${action.comment.replace(/\s+/g, ' ').slice(0, 80)}`;
   if (!version) return `${NO_BACKLOG}: "${action.task.subject}"`;
   return `create ${type.name} "${action.task.subject}" (${action.task.points} pts) -> ${version.name}${action.closed ? ', then Closed' : ''}${evidence}`;
 }
@@ -167,7 +190,7 @@ async function execute(p, ctx, version, link) {
   const { action } = p;
   if (action.action === 'close') {
     await ctx.op.closeWorkPackage(action.ticket, ctx.closedId);
-    return link(action.ticket, 'closed');
+    return link(action.ticket, p.resumed ? 'created-closed' : 'closed');
   }
   if (action.action === 'comment') {
     await ctx.op.addComment(action.ticket, action.comment);
@@ -190,6 +213,7 @@ export async function reconcileApply(opts, deps) {
   const seen = new Map();
   const prepared = actions.map((action, i) => prepare(home, action, i, seen));
   const cache = new Map();
+  await checkTickets(prepared, cache, opFor);
   const versions = await placeCreates(prepared, cache, deps);
   const rows = [];
   for (const p of prepared) {

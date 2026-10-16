@@ -27,6 +27,7 @@ disable-model-invocation: true
    | `partial`, or done but not every criterion met | `comment` with a short progress note |
    | `done`, has `commit`, no matching ticket | `create` with `"closed": true` |
    | `partial`, no matching ticket | `create` with `"closed": false` |
+   | `link` with action `created` (ticket made earlier, close didn't go through) | `close` that `link.ticket` |
    | no `commit`, or several tickets could match | no action — give the reason |
 
    Never close, or create a Closed ticket, without a `commit`.
