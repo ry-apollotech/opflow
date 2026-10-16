@@ -75,7 +75,11 @@ else. At the start of each new session, Claude mentions them once, in one line.
 
 - `/opflow:plan-feature add CSV export to the invoices page`: Claude breaks the feature into User Stories with
   points and shows where each one goes. Approve, and they're created and assigned to you.
-- `/opflow:done-tasks`: review which stories are finished. Approve, and they're set to Closed.
+- `/opflow:done-tasks`: Claude matches today's journal (features built, bugs fixed, in every project) with your
+  OpenProject tickets. It proposes, per item, to close a ticket (only for committed, finished work), add a progress
+  comment, or create a ticket for work that had none. Approve, and all of it is applied; each ticket is linked back
+  to the journal so nothing is done twice. The first time a repo shows up, Claude asks which OpenProject project it
+  belongs to (or to never ticket it).
 - `/opflow:report-day`: review the drafted daily report. Approve, and it's posted to your Talk room.
 
 ### Session journal
@@ -162,9 +166,11 @@ All calls use **your** credentials:
 | check, done | `GET /api/v3/statuses` (finds "Closed") |
 | check, plan | `GET /api/v3/projects/{project}/versions` (current sprint and backlog) |
 | plan | `GET /api/v3/projects/{project}/work_packages?filters=…` (your open tasks in the sprint) |
-| plan (on approve) | `POST /api/v3/projects/{project}/work_packages` |
+| plan, done (on approve) | `POST /api/v3/projects/{project}/work_packages` |
 | done (on approve) | `GET` + `PATCH /api/v3/work_packages/{id}` |
 | report | `GET /api/v3/projects/{project}/work_packages?filters=…` (your tasks updated today) |
+| done | `GET /api/v3/projects/{project}/work_packages?filters=[search]` (matching tickets; skipped if your OpenProject doesn't support it) |
+| done (on approve) | `POST /api/v3/work_packages/{id}/activities` (progress comment) |
 | check | `GET /ocs/v2.php/apps/spreed/api/v4/room/{room token}` |
 | report (on approve) | `POST /ocs/v2.php/apps/spreed/api/v1/chat/{room token}` |
 
@@ -178,6 +184,9 @@ node "<plugin folder>/bin/opflow.js" plan:rules
 node "<plugin folder>/bin/opflow.js" check
 node "<plugin folder>/bin/opflow.js" op:create --file tasks.json [--yes]
 node "<plugin folder>/bin/opflow.js" op:done <id...> [--yes]
+node "<plugin folder>/bin/opflow.js" reconcile:candidates [--date YYYY-MM-DD]
+node "<plugin folder>/bin/opflow.js" reconcile:apply --file reconcile.json [--yes]
+node "<plugin folder>/bin/opflow.js" project:map <project> <identifier>|--never
 node "<plugin folder>/bin/opflow.js" op:today [--json]
 node "<plugin folder>/bin/opflow.js" talk:post --file report.md [--yes]
 node "<plugin folder>/bin/opflow.js" journal:note --kind feature|bug --status done|partial --text "..." [--ticket <id>] [--commit <hash>]

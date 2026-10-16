@@ -208,9 +208,15 @@ Run these in Claude Code, in whatever project you're working on.
 
 ### `/opflow:done-tasks`
 
-1. Claude lists your work packages updated today (or the ids you name).
-2. It proposes which ones are finished, with a reason for each.
-3. On **Approve**, they're set to **Closed**.
+1. Claude reads today's journal for every project (`reconcile:candidates`): the features and bugs not yet linked
+   to a ticket, with candidate tickets for each (the ticket named in the note, a text search, and your open sprint
+   and backlog tickets).
+2. For a repo that isn't mapped yet, it asks which OpenProject project it belongs to, or to never ticket it
+   (saved in `~/.opflow/projects.json`).
+3. It proposes one action per item — close, comment, or create (Bug type for bugs when the project has it) — and
+   shows a dry run. Closing needs finished work with a commit; the CLI refuses otherwise.
+4. On **Approve**, `reconcile:apply --yes` applies them and records a `ticket_link` in the journal for each.
+   If the journal is empty, it falls back to the old flow: today's work packages, closed with `op:done`.
 
 ### `/opflow:report-day`
 
@@ -351,7 +357,9 @@ src/main-module.js    "is this file being run directly" check
 src/project.js        repo root detection and ~/.opflow/projects.json
 src/journal.js        journal files: append, read, collapse notes
 src/journal-view.js   journal:show Markdown and the session-start context
-src/journal-cli.js    journal:note and journal:show
+src/journal-cli.js    journal:note, journal:show and project:map
+src/sprint.js         sprint capacity: places stories in the sprint or backlog by points
+src/reconcile.js      reconcile:candidates and reconcile:apply
 scripts/journal-hook.js      the journal hook (session start/end, commits, context)
 scripts/session-reminder.js  the reminder text the hook adds on startup
 skills/               plugin skills (setup, plan-feature, done-tasks, report-day)

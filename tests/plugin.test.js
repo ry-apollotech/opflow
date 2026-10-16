@@ -55,3 +55,12 @@ test('the old installer is gone', () => {
   assert.equal(existsSync(join(ROOT, 'scripts/install.js')), false);
   assert.equal(JSON.parse(read('package.json')).scripts['install-skills'], undefined);
 });
+
+test('done-tasks reconciles from the journal and keeps the old flow as a fallback', () => {
+  const text = read('skills/done-tasks/SKILL.md');
+  for (const cmd of ['reconcile:candidates', 'project:map', 'reconcile:apply --file ~/.opflow/reconcile.json', 'op:today --json']) {
+    assert.ok(text.includes(cmd), cmd);
+  }
+  assert.match(text, /opflow\.js" reconcile:apply --file ~\/\.opflow\/reconcile\.json --yes/);
+  assert.match(text, /Never close.*without a `commit`/);
+});
