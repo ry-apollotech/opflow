@@ -18,7 +18,11 @@ Commands:
   op:create --file tasks.json    Create User Stories in the current sprint or backlog (dry run unless --yes)
   op:done <id...>                Set work packages to Closed (dry run unless --yes)
   op:today [--json]              List your work packages updated today
-  talk:post --file report.md     Post a message to the Talk room (dry run unless --yes)`;
+  talk:post --file report.md     Post a message to the Talk room (dry run unless --yes)
+  journal:note --kind feature|bug --status done|partial --text "..." [--ticket <id>] [--commit <hash>] [--session <id>]
+                                 Record a feature or bug fix in this project's journal (local only)
+  journal:show [--project <slug>] [--date YYYY-MM-DD] [--json]
+                                 Show the journal (default: all projects, today)`;
 
 // PowerShell doesn't expand ~ for native programs, so skills' ~/.opflow/... paths are expanded here.
 function expandHome(path) {

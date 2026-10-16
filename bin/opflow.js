@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run, USAGE } from '../src/cli.js';
 import { loadUserConfig, opflowHome, preferencesFile } from '../src/home.js';
+import { runJournal } from '../src/journal-cli.js';
 import { createOpenProjectClient } from '../src/openproject.js';
 import { localDate } from '../src/payloads.js';
 import { loadPreferences, planRules } from '../src/preferences.js';
@@ -58,6 +59,9 @@ async function main() {
     return 0;
   }
   if (argv[0] === 'setup') return setup();
+  if (argv[0] === 'journal:note' || argv[0] === 'journal:show') {
+    return runJournal(argv, { home, cwd: process.cwd(), today: localDate(), log: (line) => console.log(line) });
+  }
   if (argv[0] === 'plan:rules') {
     console.log(planRules(await loadPreferences(preferencesFile(home))));
     return 0;
