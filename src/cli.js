@@ -21,7 +21,9 @@ Commands:
   journal:note --kind feature|bug --status done|partial --text "..." [--ticket <id>] [--commit <hash>] [--session <id>]
                                  Record a feature or bug fix in this project's journal (local only)
   journal:show [--project <slug>] [--date YYYY-MM-DD] [--json]
-                                 Show the journal (default: all projects, today)`;
+                                 Show the journal (default: all projects, today)
+  project:map <project> <identifier>|--never
+                                 Map a journal project to an OpenProject project (or never ticket it)`;
 
 // PowerShell doesn't expand ~ for native programs, so skills' ~/.opflow/... paths are expanded here.
 function expandHome(path) {

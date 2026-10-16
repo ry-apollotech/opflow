@@ -59,7 +59,7 @@ async function main() {
     return 0;
   }
   if (argv[0] === 'setup') return setup();
-  if (argv[0] === 'journal:note' || argv[0] === 'journal:show') {
+  if (['journal:note', 'journal:show', 'project:map'].includes(argv[0])) {
     return runJournal(argv, { home, cwd: process.cwd(), today: localDate(), log: (line) => console.log(line) });
   }
   if (argv[0] === 'plan:rules') {

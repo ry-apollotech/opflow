@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { appendEvent, readEvents } from '../src/journal.js';
 import { parseFlags, runJournal } from '../src/journal-cli.js';
+import { projectBySlug } from '../src/project.js';
 import { gitIn, makeRepo } from './helpers.js';
 
 const BIN = fileURLToPath(new URL('../bin/opflow.js', import.meta.url));
@@ -122,4 +123,19 @@ test('bin: journal commands work before opflow is set up', () => {
   const show = spawnSync(process.execPath, [BIN, 'journal:show'], { cwd: repo, env, encoding: 'utf8' });
   assert.equal(show.status, 0);
   assert.match(show.stdout, /## tdm/);
+});
+
+test('project:map saves a mapping or "never"; validates arguments', () => {
+  const s = setup();
+  s.run(NOTE);
+  assert.equal(s.run(['project:map', 'tdm', 'iconnect']), 0);
+  assert.equal(s.lines.at(-1), 'tdm -> OpenProject project iconnect');
+  assert.equal(projectBySlug(s.home, 'tdm').opProject, 'iconnect');
+  assert.equal(s.run(['project:map', 'tdm', '--never']), 0);
+  assert.equal(s.lines.at(-1), 'tdm will never be ticketed.');
+  assert.equal(projectBySlug(s.home, 'tdm').opProject, false);
+  assert.equal(s.run(['project:map', 'tdm']), 1);
+  assert.match(s.lines.at(-1), /Usage: project:map/);
+  assert.equal(s.run(['project:map', 'tdm', '../x']), 1);
+  assert.match(s.lines.at(-1), /Invalid OpenProject identifier/);
 });

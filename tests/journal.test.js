@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   appendEvent, collapseItems, journalDir, journalFile, knownHead, latestSession, listDates, listSlugs, readEvents,
-  sessionsWithoutEnd, unlinkedCommit,
+  sessionsWithoutEnd, ticketLinks, unlinkedCommit,
 } from '../src/journal.js';
 
 const tempHome = () => mkdtempSync(join(tmpdir(), 'opflow-home-'));
@@ -110,4 +110,20 @@ test('collapseItems: a ticketed note and a later untagged note with the same tex
   assert.equal(items.length, 1);
   assert.deepEqual([items[0].status, items[0].ticket], ['done', '12']);
   assert.equal(collapseItems([note({ ticket: '1', text: 'X' }), note({ ticket: '2', text: 'X' })]).length, 2);
+});
+
+const link = (over) => ({ session: 's1', source: 'cli', kind: 'ticket_link', ticket: '55', action: 'commented', opProject: 'demo', ...over });
+
+test('ticketLinks keys links by the note they belong to', () => {
+  const links = ticketLinks([note({ ts: 't1' }), link({ note: { ts: 't1', session: 's1' } }), { kind: 'ticket_link' }]);
+  assert.deepEqual([...links.keys()], ['s1|t1']);
+});
+
+test('collapseItems: a linked latest note is marked; a newer note keeps the ticket but is not linked', () => {
+  const first = note({ ts: 't1', status: 'partial', text: 'Export' });
+  const linked = collapseItems([first, link({ note: { ts: 't1', session: 's1' } })]);
+  assert.deepEqual([linked[0].ticket, linked[0].link], ['55', { ticket: '55', action: 'commented' }]);
+  const later = collapseItems([first, link({ note: { ts: 't1', session: 's1' } }), note({ ts: 't2', status: 'done', text: 'export' })]);
+  assert.equal(later.length, 1);
+  assert.deepEqual([later[0].status, later[0].ticket, later[0].link], ['done', '55', undefined]);
 });

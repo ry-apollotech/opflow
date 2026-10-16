@@ -55,3 +55,18 @@ export function identifyProject(home, cwd, git = runGit) {
   saveProjects(home, { ...projects, [root]: entry });
   return { root, ...entry };
 }
+
+export function projectBySlug(home, slug) {
+  const hit = Object.entries(loadProjects(home)).find(([, p]) => p.slug === slug);
+  return hit ? { root: hit[0], ...hit[1] } : null;
+}
+
+export function setOpProject(home, slug, opProject) {
+  const projects = loadProjects(home);
+  const root = Object.keys(projects).find((r) => projects[r].slug === slug);
+  if (!root) {
+    const known = Object.values(projects).map((p) => p.slug).join(', ') || 'none';
+    throw new Error(`Unknown project "${slug}". Known: ${known}`);
+  }
+  saveProjects(home, { ...projects, [root]: { ...projects[root], opProject } });
+}

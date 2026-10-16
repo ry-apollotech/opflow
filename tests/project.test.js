@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpath
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { projectsFile } from '../src/home.js';
-import { identifyProject, loadProjects, projectRoot, slugFor, toPosix } from '../src/project.js';
+import { identifyProject, loadProjects, projectBySlug, projectRoot, setOpProject, slugFor, toPosix } from '../src/project.js';
 import { gitIn, makeRepo } from './helpers.js';
 
 const tempDir = (prefix = 'opflow-home-') => mkdtempSync(join(tmpdir(), prefix));
@@ -81,4 +81,17 @@ test('loadProjects: missing file is empty; a corrupt file is a clear error', () 
   assert.throws(() => loadProjects(home), /projects\.json/);
   assert.ok(existsSync(projectsFile(home)));
   assert.equal(readFileSync(projectsFile(home), 'utf8'), '{ nope');
+});
+
+test('projectBySlug and setOpProject', () => {
+  const home = tempDir();
+  const repo = makeRepo('tdm');
+  identifyProject(home, repo);
+  assert.deepEqual(projectBySlug(home, 'tdm'), { root: toPosix(repo), slug: 'tdm', opProject: null });
+  assert.equal(projectBySlug(home, 'nope'), null);
+  setOpProject(home, 'tdm', 'iconnect');
+  assert.equal(projectBySlug(home, 'tdm').opProject, 'iconnect');
+  setOpProject(home, 'tdm', false);
+  assert.equal(projectBySlug(home, 'tdm').opProject, false);
+  assert.throws(() => setOpProject(home, 'nope', 'x'), /Unknown project "nope"\. Known: tdm/);
 });

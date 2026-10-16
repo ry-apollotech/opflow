@@ -59,17 +59,28 @@ function sameItem(a, b) {
   return a.kind === b.kind && normText(a.text) === normText(b.text);
 }
 
-// One entry per feature/bug: the latest note wins (moved to the end), keeping an earlier commit or ticket if it has none.
+const noteRef = (e) => `${e.session}|${e.ts}`;
+
+export function ticketLinks(events) {
+  return new Map(events.filter((e) => e.kind === 'ticket_link' && e.note).map((e) => [`${e.note.session}|${e.note.ts}`, e]));
+}
+
+// One entry per feature/bug: the latest note wins (moved to the end), keeping an earlier commit or ticket if it has
+// none. A note's ticket_link counts as its ticket; `link` is set only when the latest note itself is linked.
 export function collapseItems(events) {
+  const links = ticketLinks(events);
   const items = [];
   for (const e of events) {
     if (!NOTE_KINDS.includes(e.kind) || typeof e.text !== 'string') continue;
-    const index = items.findIndex((item) => sameItem(item, e));
+    const link = links.get(noteRef(e));
+    const current = link && !e.ticket ? { ...e, ticket: link.ticket } : e;
+    const index = items.findIndex((item) => sameItem(item, current));
     const before = index === -1 ? null : items.splice(index, 1)[0];
     items.push({
-      ...e,
-      ...(before?.commit && !e.commit ? { commit: before.commit } : {}),
-      ...(before?.ticket && !e.ticket ? { ticket: before.ticket } : {}),
+      ...current,
+      ...(before?.commit && !current.commit ? { commit: before.commit } : {}),
+      ...(before?.ticket && !current.ticket ? { ticket: before.ticket } : {}),
+      ...(link ? { link: { ticket: link.ticket, action: link.action } } : {}),
     });
   }
   return items;

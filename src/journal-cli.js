@@ -1,6 +1,6 @@
 import { NOTE_KINDS, appendEvent, collapseItems, latestSession, listSlugs, readEvents, unlinkedCommit } from './journal.js';
 import { renderDay } from './journal-view.js';
-import { identifyProject, runGit } from './project.js';
+import { identifyProject, runGit, setOpProject } from './project.js';
 
 const STATUSES = ['done', 'partial'];
 const MAX_TEXT = 200;
@@ -82,11 +82,21 @@ function journalShow(flags, { home, today, log }) {
   return 0;
 }
 
+function projectMap(args, { home, log }) {
+  const [slug, target, ...extra] = args;
+  if (!slug || !target || extra.length) throw new Error('Usage: project:map <project> <openproject-identifier>|--never');
+  if (target !== '--never' && !/^[a-z0-9][a-z0-9_-]*$/i.test(target)) throw new Error(`Invalid OpenProject identifier: ${target}`);
+  setOpProject(home, slug, target === '--never' ? false : target);
+  log(target === '--never' ? `${slug} will never be ticketed.` : `${slug} -> OpenProject project ${target}`);
+  return 0;
+}
+
 const COMMANDS = { 'journal:note': journalNote, 'journal:show': journalShow };
 
 export function runJournal(argv, deps) {
   const [command, ...rest] = argv;
   try {
+    if (command === 'project:map') return projectMap(rest, deps);
     return COMMANDS[command](parseFlags(rest), { git: runGit, ...deps });
   } catch (err) {
     deps.log(`Error: ${err.message}`);
